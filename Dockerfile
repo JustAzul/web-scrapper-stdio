@@ -1,66 +1,39 @@
 # Use an official Python runtime as a parent image
-FROM python:3.10-slim
+FROM python:3.11-slim
 
-# Set environment variables for Python
+# Set environment variables
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
 
-# Set work directory
+# Set the working directory in the container
 WORKDIR /app
 
-# Install system dependencies
-# wget and unzip are needed for downloading Chrome/ChromeDriver
-# fonts-liberation helps render pages correctly
-RUN apt-get update && apt-get install -y \
-    wget \
-    unzip \
-    fonts-liberation \
-    libu2f-udev \
-    curl \
-    jq \
-    # Add any other system dependencies required by Chrome or your app
-    --no-install-recommends \
+# Install system dependencies required by Playwright
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Playwright browser dependencies
+    libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdbus-1-3 \
+    libdrm2 libexpat1 libgbm1 libgcc1 libglib2.0-0 libpango-1.0-0 \
+    libx11-6 libx11-xcb1 libxcb1 libxcomposite1 libxdamage1 libxext6 \
+    libxfixes3 libxrandr2 libxrender1 libxtst6 ca-certificates \
+    fonts-liberation libappindicator3-1 libasound2 xdg-utils wget \
+    # Cleanup
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Google Chrome Stable
-RUN wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
-    && apt-get update \
-    # Use apt-get install -f to install dependencies if needed
-    && apt-get install -y ./google-chrome-stable_current_amd64.deb --fix-missing --no-install-recommends \
-    && rm google-chrome-stable_current_amd64.deb
-
-# Install ChromeDriver using the new JSON endpoints
-RUN CHROME_MAJOR_VERSION=$(google-chrome --version | cut -d ' ' -f 3 | cut -d '.' -f 1) \
-    && echo "Detected Chrome major version: $CHROME_MAJOR_VERSION" \
-    # Get the latest stable chromedriver version URL for the major Chrome version
-    # Note the careful quoting for jq and shell variable expansion
-    && CHROME_DRIVER_URL=$(curl -sS https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json | jq -r --arg major_version "$CHROME_MAJOR_VERSION" '.versions[] | select(.version | startswith($major_version + ".")) | .downloads.chromedriver // [] | .[] | select(.platform=="linux64") | .url' | tail -n 1) \
-    && echo "Using ChromeDriver URL: ${CHROME_DRIVER_URL}" \
-    # Download and install ChromeDriver
-    && wget -q "${CHROME_DRIVER_URL}" -O chromedriver_linux64.zip \
-    && unzip chromedriver_linux64.zip -d /app/chromedriver_temp \
-    # The unzipped structure might be like chromedriver-linux64/chromedriver
-    && mv /app/chromedriver_temp/chromedriver-linux64/chromedriver /usr/local/bin/chromedriver \
-    && rm chromedriver_linux64.zip \
-    && rm -rf /app/chromedriver_temp \
-    && chmod +x /usr/local/bin/chromedriver
-
-# Verify installations
-RUN google-chrome --version
-RUN chromedriver --version
-
 # Install Python dependencies
-COPY requirements.txt .
-# Use --no-cache-dir to reduce image size
+COPY requirements.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy project source code into the container
+# Install Playwright browsers
+# This command downloads the browser binaries into the image
+RUN playwright install --with-deps chromium
+
+# Copy the rest of the application code into the container
 COPY ./src /app/src
 
-# Make port 80 available to the world outside this container (if needed for web apps later)
-# EXPOSE 80
+# Expose the port the app runs on
+EXPOSE 8000
 
-# Define the command to run the application
-ENTRYPOINT ["python", "src/main.py"]
-# CMD will be appended to ENTRYPOINT, providing the default URL if needed, or can be overridden
-# CMD ["https://example.com"] # Example default URL 
+# Command to run the application using uvicorn
+# Use --host 0.0.0.0 to make it accessible from outside the container
+CMD ["uvicorn", "src.api:app", "--host", "0.0.0.0", "--port", "8000"] 

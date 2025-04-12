@@ -1,21 +1,47 @@
 version: '3.8'
 
 services:
-  app:
+  webscraper:
     build:
       context: .
       dockerfile: Dockerfile
-    # The command is defined by ENTRYPOINT in Dockerfile
-    # To pass a URL, run: docker compose run app <url>
-    # Example: docker compose run app "https://example.com"
-    # Add necessary environment variables or volumes if needed later
-    # Environment variables can override defaults if the script supports it
-    # environment:
-    #   - TARGET_URL=https://default.example.com
-    # Volumes can be used for mounting local config or output directories
-    # volumes:
-    #   - ./output:/app/output
-    # Increase shared memory size if needed for Chrome
-    shm_size: '2gb'
-    # stdin_open: true # Keep stdin open
-    # tty: true        # Allocate a pseudo-TTY 
+    container_name: webscraper_service
+    ports:
+      - "8000:8000" # Map container port 8000 to host port 8000
+    environment:
+      # Pass configuration via environment variables if needed
+      # Example:
+      # - SCRAPER_TIMEOUT_SECONDS=45
+      - PYTHONUNBUFFERED=1 # Ensure logs are shown immediately
+    # Increase shared memory size - important for Chrome/Playwright stability
+    shm_size: '2gb' 
+    volumes:
+      - ./src:/app/src # Mount local src for development (optional)
+
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: webscraper_tester
+    depends_on:
+      - webscraper # Wait for the webscraper service to be available (basic check)
+    environment:
+      - SCRAPER_BASE_URL=http://webscraper:8000 # URL to reach the API service from the test container
+      - PYTEST_ADDOPTS=--disable-warnings # Optional: Suppress pytest warnings
+      - PYTHONUNBUFFERED=1
+    # Mount test code and potentially shared source code if needed
+    volumes:
+      - ./tests:/app/tests
+      - ./src:/app/src # Make source code available if tests import from it directly
+    # Increase shared memory size for potential Playwright use within tests
+    shm_size: '2gb' 
+    # The command to run the tests. 
+    # We override the default CMD from the Dockerfile.
+    # Waits a few seconds for the webserver to fully start before running tests.
+    command: >
+      sh -c "
+        echo 'Waiting for webscraper service to start...'; 
+        sleep 5; 
+        echo 'Running tests...'; 
+        pytest tests/
+      "
