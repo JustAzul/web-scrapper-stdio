@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # The command is defined by ENTRYPOINT in Dockerfile
+    # To pass a URL, run: docker compose run app <url>
+    # Example: docker compose run app "https://example.com"
+    # Add necessary environment variables or volumes if needed later
+    # Environment variables can override defaults if the script supports it
+    # environment:
+    #   - TARGET_URL=https://default.example.com
+    # Volumes can be used for mounting local config or output directories
+    # volumes:
+    #   - ./output:/app/output
+    # Increase shared memory size if needed for Chrome
+    shm_size: '2gb'
+    # stdin_open: true # Keep stdin open
+    # tty: true        # Allocate a pseudo-TTY 
