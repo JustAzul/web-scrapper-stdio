@@ -1,4 +1,4 @@
-.cursorrules
+.cursor*
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -173,3 +173,4 @@ cython_debug/
 
 # Project specific files
 prd.md 
+
