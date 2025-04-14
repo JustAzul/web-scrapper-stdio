@@ -43,5 +43,5 @@ services:
         echo 'Waiting for webscraper service to start...'; 
         sleep 5; 
         echo 'Running tests...'; 
-        pytest tests/
+        pytest -v -rs tests/
       "

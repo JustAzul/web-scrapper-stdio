@@ -37,45 +37,31 @@ async def extract_content(request: ExtractRequest):
             detail="Invalid URL scheme. Only HTTP and HTTPS are supported."
         )
 
+    # We rely on the scraper function to handle all errors internally
+    # and return the appropriate status in the dictionary.
     try:
         result = await extract_text_from_url(str(request.url))
         
-        # Determine appropriate HTTP status code based on scraper status
-        response_status_code = status.HTTP_200_OK
-        if result["status"] not in ["success"]:
-            if result["status"] in ["error_fetching", "error_timeout", "error_invalid_url"]:
-                 # Treat fetching/timeout errors as potentially server-side or external issues
-                 # Using 503 might be appropriate if the service couldn't reach the target
-                 response_status_code = status.HTTP_503_SERVICE_UNAVAILABLE 
-            elif result["status"] == "error_parsing":
-                 # Parsing errors might indicate issues with the content itself, but the fetch was ok
-                 # Still return 200 OK, but the status field indicates the problem
-                 response_status_code = status.HTTP_200_OK 
-            else:
-                 # Unknown errors -> Internal Server Error
-                 response_status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
-
-            # Log the error status being returned
-            logger.error(f"Extraction failed for {request.url}. Status: {result['status']}, Message: {result['error_message']}")
-            
-            # If it's a server-side issue, raise HTTPException to return non-200 status
-            # Otherwise, return 200 OK with the error details in the response body
-            if response_status_code != status.HTTP_200_OK:
-                 raise HTTPException(
-                    status_code=response_status_code,
-                    detail=result["error_message"] or "Extraction failed"
-                 )
-        
-        # If status is success or a non-HTTP-error status like 'error_parsing', return 200 OK
+        # Log if the extraction wasn't successful, but don't raise HTTP error
+        if result["status"] != "success":
+             logger.warning(f"Extraction for {request.url} finished with status '{result['status']}'. Error: {result['error_message']}")
+        else:
+             logger.info(f"Extraction successful for {request.url}. Final URL: {result['final_url']}")
+             
+        # Always return HTTP 200 OK. The success/failure is in the JSON body.
         return ExtractResponse(**result)
 
-    except HTTPException as http_exc: # Re-raise HTTPExceptions
-        raise http_exc
     except Exception as e:
-        logger.exception(f"Unexpected error in API handler for URL {request.url}: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An unexpected internal error occurred: {str(e)}"
+        # Catch unexpected errors during the call to the scraper *itself* 
+        # or during response packaging. This indicates an internal server error.
+        logger.exception(f"Unexpected internal error processing URL {request.url}: {e}")
+        # Return a generic error response consistent with the schema, but log the real error
+        # We still return 200 OK as per PRD, but status indicates failure.
+        return ExtractResponse(
+            extracted_text="",
+            status="error_unknown",
+            error_message=f"An unexpected internal server error occurred.",
+            final_url=str(request.url) # Use original URL as final is unknown
         )
 
 # Add a simple root endpoint for health checks or basic info
