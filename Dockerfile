@@ -31,9 +31,14 @@ RUN playwright install --with-deps chromium
 # Copy the rest of the application code into the container
 COPY ./src /app/src
 
-# Expose the port the app runs on
-EXPOSE 8000
+# Define ARG for default port and ENV for runtime port
+ARG DEFAULT_PORT=9001
+ENV PORT=${PORT:-$DEFAULT_PORT}
+
+# Expose the port the app runs on (uses the ENV variable)
+EXPOSE ${PORT}
 
 # Command to run the application using uvicorn
 # Use --host 0.0.0.0 to make it accessible from outside the container
-CMD ["uvicorn", "src.api:app", "--host", "0.0.0.0", "--port", "8000"] 
+# Use the PORT environment variable
+CMD uvicorn src.api:app --host 0.0.0.0 --port $PORT 

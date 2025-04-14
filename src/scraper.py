@@ -4,7 +4,21 @@ from bs4 import BeautifulSoup
 import logging
 import re
 
-from .config import TIMEOUT_SECONDS, USER_AGENT, VIEWPORT_WIDTH, VIEWPORT_HEIGHT
+# Try different import approaches to handle various contexts
+try:
+    # When imported as part of the src package
+    from .config import TIMEOUT_SECONDS, USER_AGENT, VIEWPORT_WIDTH, VIEWPORT_HEIGHT
+except ImportError:
+    try:
+        # When using absolute imports
+        from src.config import TIMEOUT_SECONDS, USER_AGENT, VIEWPORT_WIDTH, VIEWPORT_HEIGHT
+    except ImportError:
+        # When run directly or in special contexts
+        import sys
+        import os
+        # Add parent directory to path
+        sys.path.insert(0, os.path.abspath(os.path.dirname(os.path.dirname(__file__))))
+        from src.config import TIMEOUT_SECONDS, USER_AGENT, VIEWPORT_WIDTH, VIEWPORT_HEIGHT
 
 logger = logging.getLogger(__name__)
 

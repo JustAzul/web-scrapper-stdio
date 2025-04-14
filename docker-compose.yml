@@ -5,28 +5,55 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: webscraper_service
+      args:
+        # Pass the default port during build, allows Dockerfile ARG to work
+        DEFAULT_PORT: ${PORT:-9001}
+    container_name: webscraper
     ports:
-      - "8000:8000" # Map container port 8000 to host port 8000
+      # Map host port to container port using the PORT variable
+      - "${PORT:-9001}:${PORT:-9001}"
+    # Command is handled by Dockerfile CMD now, using the ENV PORT
+    # command: uvicorn src.api:app --host 0.0.0.0 --port ${PORT:-9001}
     environment:
-      # Pass configuration via environment variables if needed
+      # Ensure the container runs on the specified port
+      - PORT=${PORT:-9001}
+      # Pass other configuration via environment variables if needed
       # Example:
       # - SCRAPER_TIMEOUT_SECONDS=45
       - PYTHONUNBUFFERED=1 # Ensure logs are shown immediately
     # Increase shared memory size - important for Chrome/Playwright stability
-    shm_size: '2gb' 
+    shm_size: '2gb'
     volumes:
       - ./src:/app/src # Mount local src for development (optional)
 
-  test:
+  mcp_server:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: webscraper_tester
-    depends_on:
-      - webscraper # Wait for the webscraper service to be available (basic check)
+      args: # Pass build arg here too if mcp_server ever needs the port internally
+        DEFAULT_PORT: ${PORT:-9001}
+    container_name: mcp_server
+    # No ports needed for MCP server unless explicitly connecting over network
     environment:
-      - SCRAPER_BASE_URL=http://webscraper:8000 # URL to reach the API service from the test container
+      - PYTHONUNBUFFERED=1
+      # If mcp_server needed the API port, it would be passed here:
+      # - PORT=${PORT:-9001}
+    shm_size: '2gb' # Playwright needs shared memory
+    volumes:
+      - ./src:/app/src
+    command: python src/mcp_server.py # Command to run the MCP server
+    # Potentially add depends_on if it needs another service, but likely runs independently
+
+  test_api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: webscraper_api_tester
+    depends_on:
+      - webscraper # Wait for the webscraper service to be available
+    environment:
+      # Update URL to use the PORT variable
+      - WEBSCRAPER_SERVICE_URL=http://webscraper:${PORT:-9001}
       - PYTEST_ADDOPTS=--disable-warnings # Optional: Suppress pytest warnings
       - PYTHONUNBUFFERED=1
     # Mount test code and potentially shared source code if needed
@@ -34,14 +61,68 @@ services:
       - ./tests:/app/tests
       - ./src:/app/src # Make source code available if tests import from it directly
     # Increase shared memory size for potential Playwright use within tests
-    shm_size: '2gb' 
-    # The command to run the tests. 
-    # We override the default CMD from the Dockerfile.
-    # Waits a few seconds for the webserver to fully start before running tests.
+    shm_size: '2gb'
+    # The command to run the API tests
     command: >
       sh -c "
-        echo 'Waiting for webscraper service to start...'; 
-        sleep 5; 
-        echo 'Running tests...'; 
+        echo 'Waiting for webscraper service to start...';
+        # Adjust sleep if needed based on startup time with new port
+        sleep 5;
+        echo 'Running API tests...';
+        pytest -v -rs tests/test_api.py
+      "
+
+  test_mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: webscraper_mcp_tester
+    # Removed depends_on as stdio_client starts the server process
+    # depends_on:
+    #   - mcp_server # Wait for the MCP server service
+    environment:
+      - PYTEST_ADDOPTS=--disable-warnings # Optional: Suppress pytest warnings
+      - PYTHONUNBUFFERED=1 # Added for consistency
+    # Mount test code and potentially shared source code if needed
+    volumes:
+      - ./tests:/app/tests
+      - ./src:/app/src # Make source code available if tests import from it directly
+    # Increase shared memory size for potential Playwright use within tests
+    shm_size: '2gb'
+    # The command to run the MCP tests
+    command: >
+      sh -c "
+        echo 'Waiting for MCP server service to start...';
+        sleep 8; # MCP server might need a bit more time to initialize
+        echo 'Running MCP tests...';
+        pytest -v -rs tests/test_mcp.py
+      "
+
+  # Keep the original test service for compatibility but make it run all tests
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: webscraper_tester
+    depends_on:
+      - webscraper
+      # - mcp_server # MCP tests are now run via test_mcp, not directly dependent here? Or keep for full suite run? Kept for now.
+      - mcp_server
+    environment:
+      # Explicitly set the URL and Port for the API service
+      - WEBSCRAPER_SERVICE_URL=http://webscraper:9001
+      # MCP server address doesn't depend on the API port
+      - MCP_SERVER_ADDRESS=mcp://mcp_server # Kept for reference, though stdio is used now
+      - PYTEST_ADDOPTS=--disable-warnings
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./tests:/app/tests
+      - ./src:/app/src
+    shm_size: '2gb'
+    command: >
+      sh -c "
+        echo 'Waiting for all services to start...';
+        sleep 15; # Increased wait time
+        echo 'Running all tests...';
         pytest -v -rs tests/
       "
