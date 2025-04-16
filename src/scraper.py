@@ -146,9 +146,63 @@ async def extract_text_from_url(url: str) -> dict:
                     return result
 
                 # For some sites, the initial load doesn't have full content, so we need to wait
-                # Wait for potential dynamic content loading - a simple heuristic
-                # Only wait if the initial fetch was successful and not likely a 404
-                await asyncio.sleep(3) # Give some time for JS execution
+                # Use smarter waiting strategy instead of fixed sleep
+                logger.info(f"Waiting for content to stabilize on {result['final_url']}")
+
+                # First wait for network to become idle - most JS-based content will trigger network requests
+                try:
+                    await page.wait_for_load_state("networkidle", timeout=TIMEOUT_SECONDS * 1000 / 2)
+                    logger.info("Network became idle")
+                except PlaywrightTimeoutError:
+                    logger.warning(f"Network didn't become fully idle after {TIMEOUT_SECONDS/2}s, continuing anyway")
+
+                # Parse the domain for domain-specific waiting strategies
+                domain = urlparse(result["final_url"]).netloc.lower()
+                content_found = False
+
+                # Domain-specific content selectors to wait for
+                domain_specific_selectors = {
+                    "dev.to": ["article.crayons-article", "div#article-body", "div.article-body", "section[role='main']"],
+                    "forem.com": ["article.crayons-article", "div#article-body", "div.article-body", "section[role='main']"],
+                    "medium.com": ["article", "div.story", "section.story"],
+                    "forbes.com": ["div.article-body", "article.article"]
+                }
+
+                # First try domain-specific waiting if available
+                if any(d in domain for d in domain_specific_selectors.keys()):
+                    # Find matching domain
+                    matching_domain = next((d for d in domain_specific_selectors.keys() if d in domain), None)
+                    if matching_domain:
+                        logger.info(f"Using domain-specific selectors for {matching_domain}")
+                        for selector in domain_specific_selectors[matching_domain]:
+                            try:
+                                await page.wait_for_selector(selector, timeout=3000)
+                                logger.info(f"Found domain-specific content container: {selector}")
+                                content_found = True
+                                break
+                            except PlaywrightTimeoutError:
+                                continue
+
+                # If domain-specific waiting didn't find content, try generic selectors
+                if not content_found:
+                    # General content selectors
+                    generic_selectors = ["article", "main", "[role='main']", ".post-content", ".article-content", "#article-body", ".content"]
+                    logger.info("Trying generic content selectors")
+                    
+                    for selector in generic_selectors:
+                        try:
+                            # Short timeout for checking if selectors exist to avoid long waits
+                            await page.wait_for_selector(selector, timeout=2000)
+                            logger.info(f"Found content container: {selector}")
+                            content_found = True
+                            break
+                        except PlaywrightTimeoutError:
+                            continue
+
+                # If no content found after checking selectors, do one final short wait to allow any remaining JS to run
+                if not content_found:
+                    logger.info("No specific content containers found, allowing short grace period")
+                    await asyncio.sleep(1)
 
                 logger.info(f"Extracting content from: {result['final_url']}")
                 html_content = await page.content()

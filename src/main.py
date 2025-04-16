@@ -3,6 +3,10 @@ import time
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.chrome.options import Options as ChromeOptions
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+from selenium.common.exceptions import TimeoutException
 # Use webdriver_manager only for local development/testing if needed.
 # In Docker, we install ChromeDriver directly.
 # from webdriver_manager.chrome import ChromeDriverManager
@@ -45,9 +49,58 @@ def fetch_url_content(url: str) -> str:
         driver.set_page_load_timeout(30)
         driver.get(url)
 
-        # Wait for page elements to load. A slightly longer wait might help complex sites.
+        # Wait for page elements to load with a smarter strategy
         print("Waiting for page to load...", file=sys.stderr)
-        time.sleep(7) # Increased wait time
+        
+        # Wait for document to be ready - this is a baseline wait
+        WebDriverWait(driver, 10).until(
+            lambda d: d.execute_script("return document.readyState") == "complete"
+        )
+        
+        # Try to identify the domain and wait for domain-specific elements
+        parsed_url = urlparse(driver.current_url)
+        domain = parsed_url.netloc.replace('www.', '')
+        
+        # Define a default fallback selector
+        main_content_selector = 'body'
+        
+        # If it's a known domain, use the first selector as indicator of ready content
+        if domain in KNOWN_SITE_SELECTORS:
+            selectors = KNOWN_SITE_SELECTORS[domain]
+            if selectors:
+                # Use the first selector as an indicator - try to wait for it
+                try:
+                    css_selector = selectors[0]
+                    # Convert from simple selector to CSS selector if needed
+                    if css_selector.startswith("div.") or css_selector.startswith("article"):
+                        # Already CSS format
+                        pass
+                    else:
+                        # Assume it's a tag name
+                        css_selector = f"{css_selector}"
+                    
+                    print(f"Waiting for main content element: {css_selector}", file=sys.stderr)
+                    WebDriverWait(driver, 5).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, css_selector))
+                    )
+                    print(f"Main content element found: {css_selector}", file=sys.stderr)
+                except TimeoutException:
+                    print(f"Timed out waiting for main content element: {css_selector}. Continuing anyway.", file=sys.stderr)
+        else:
+            # For unknown domains, wait for any potential content containers
+            generic_content_selectors = ["article", "main", ".content", ".article", "#content", "#main-content"]
+            print("Unknown domain. Trying to wait for common content elements...", file=sys.stderr)
+            
+            for selector in generic_content_selectors:
+                try:
+                    WebDriverWait(driver, 2).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, selector))
+                    )
+                    print(f"Found content element: {selector}", file=sys.stderr)
+                    break
+                except TimeoutException:
+                    # Continue to next selector
+                    pass
 
         # Get the final URL after potential redirects
         final_url = driver.current_url
