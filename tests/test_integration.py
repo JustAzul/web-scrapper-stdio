@@ -11,6 +11,7 @@ import feedparser
 import asyncio
 from mcp import ClientSession, StdioServerParameters # Import StdioServerParameters
 from mcp.client.stdio import stdio_client # Import stdio_client
+import aiohttp
 
 # Add src directory to Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
@@ -18,6 +19,62 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
 # Import the core scraper function for direct testing
 from src.scraper import extract_text_from_url
 
+# Track the last tested domain to implement smart sleeping
+_last_tested_domain = ""
+_domain_access_times = {}
+
+def get_domain_from_url(url):
+    """Extract the domain from a URL, removing www. prefix"""
+    parsed = urlparse(url)
+    return parsed.netloc.replace("www.", "")
+
+def smart_sleep(url, seconds=1):
+    """Only sleep if we're accessing the same domain as the last test
+    to prevent rate limiting while avoiding unnecessary delays"""
+    global _last_tested_domain
+    global _domain_access_times
+    
+    domain = get_domain_from_url(url)
+    current_time = time.time()
+    
+    # If we've accessed this domain recently, sleep to avoid rate limiting
+    if domain in _domain_access_times:
+        last_access_time = _domain_access_times[domain]
+        time_since_last_access = current_time - last_access_time
+        
+        # If we accessed this domain less than 'seconds' seconds ago, sleep for the remaining time
+        if time_since_last_access < seconds:
+            sleep_time = seconds - time_since_last_access
+            print(f"Sleeping for {sleep_time:.2f}s to avoid rate limiting {domain}")
+            time.sleep(sleep_time)
+    
+    # Update the last access time for this domain
+    _domain_access_times[domain] = time.time()
+    _last_tested_domain = domain
+
+async def smart_sleep_async(url, seconds=1):
+    """Async version of smart_sleep - only sleep if we're accessing the same domain as the last test"""
+    global _last_tested_domain
+    global _domain_access_times
+    
+    domain = get_domain_from_url(url)
+    current_time = time.time()
+    
+    # If we've accessed this domain recently, sleep to avoid rate limiting
+    if domain in _domain_access_times:
+        last_access_time = _domain_access_times[domain]
+        time_since_last_access = current_time - last_access_time
+        
+        # If we accessed this domain less than 'seconds' seconds ago, sleep for the remaining time
+        if time_since_last_access < seconds:
+            sleep_time = seconds - time_since_last_access
+            print(f"Sleeping for {sleep_time:.2f}s to avoid rate limiting {domain}")
+            await asyncio.sleep(sleep_time)
+    
+    # Update the last access time for this domain
+    _domain_access_times[domain] = time.time()
+    _last_tested_domain = domain
+    
 # Conditional import based on whether the code runs inside Docker or locally for testing
 try:
     # Assuming the API is running inside the Docker container
@@ -117,7 +174,8 @@ def test_api_extract_example_com():
     assert "Example Domain" in result["extracted_text"]
     assert result["error_message"] is None
     assert result["final_url"] in [url, url + '/']
-    if IS_DOCKER_TEST: time.sleep(1)
+    if IS_DOCKER_TEST: 
+        smart_sleep(url)
 
 @pytest.mark.skipif(not IS_API_AVAILABLE, reason="API service not available")
 def test_api_extract_redirect_success_1():
@@ -129,7 +187,8 @@ def test_api_extract_redirect_success_1():
     assert result["extracted_text"]
     assert result["error_message"] is None
     assert result["final_url"] != url
-    if IS_DOCKER_TEST: time.sleep(1)
+    if IS_DOCKER_TEST: 
+        smart_sleep(url)
 
 @pytest.mark.skipif(not IS_API_AVAILABLE, reason="API service not available")
 def test_api_extract_redirect_success_2():
@@ -141,7 +200,8 @@ def test_api_extract_redirect_success_2():
     assert result["extracted_text"]
     assert result["error_message"] is None
     assert result["final_url"] != url
-    if IS_DOCKER_TEST: time.sleep(1)
+    if IS_DOCKER_TEST: 
+        smart_sleep(url)
 
 @pytest.mark.skipif(not IS_API_AVAILABLE, reason="API service not available")
 def test_api_extract_invalid_url_404():
@@ -153,7 +213,8 @@ def test_api_extract_invalid_url_404():
     assert "404" in result["error_message"]
     assert result["extracted_text"] == ""
     assert result["final_url"] == url
-    if IS_DOCKER_TEST: time.sleep(1)
+    if IS_DOCKER_TEST: 
+        smart_sleep(url)
 
 @pytest.mark.skipif(not IS_API_AVAILABLE, reason="API service not available")
 def test_api_extract_invalid_redirect_404():
@@ -168,7 +229,8 @@ def test_api_extract_invalid_redirect_404():
     assert result["extracted_text"]
     assert result["error_message"] is None
     assert result["final_url"] != url # Check that a redirect occurred
-    if IS_DOCKER_TEST: time.sleep(1)
+    if IS_DOCKER_TEST: 
+        smart_sleep(url)
 
 @pytest.mark.skipif(not IS_API_AVAILABLE, reason="API service not available")
 def test_api_missing_url_parameter():
@@ -181,7 +243,6 @@ def test_api_missing_url_parameter():
         response = client.post("/extract", json={})
         assert response.status_code == 422
         assert "detail" in response.json()
-    if IS_DOCKER_TEST: time.sleep(1)
 
 @pytest.mark.skipif(not IS_API_AVAILABLE, reason="API service not available")
 def test_api_invalid_url_format():
@@ -200,7 +261,6 @@ def test_api_invalid_url_format():
         response = client.post("/extract", json={"url": url})
         assert response.status_code == 422
         assert "detail" in response.json()
-    if IS_DOCKER_TEST: time.sleep(1)
 
 @pytest.mark.skipif(not IS_API_AVAILABLE, reason="API service not available")
 def test_api_extract_nonexistent_domain():
@@ -212,7 +272,8 @@ def test_api_extract_nonexistent_domain():
     assert "resolve" in result["error_message"] or "connect" in result["error_message"]
     assert result["extracted_text"] == ""
     assert result["final_url"] == url
-    if IS_DOCKER_TEST: time.sleep(1)
+    if IS_DOCKER_TEST: 
+        smart_sleep(url)
 
 # --- Dynamic Article Finding Helper (Used by both API and Direct tests) ---
 # (Keep the existing find_article_link_on_page function)
@@ -270,7 +331,9 @@ def test_api_dynamic_article_extraction(domain_info):
     except Exception as e:
         pytest.fail(f"An unexpected error occurred during API call or assertion: {e}. URL: {article_url}")
 
-    if IS_DOCKER_TEST: time.sleep(2)
+    if IS_DOCKER_TEST: 
+        print("Using smart sleep for rate limiting...")
+        smart_sleep(article_url, seconds=5) # Smart delay between dynamic tests
 
 
 # --- MCP Tool Simulation Tests ---
@@ -390,7 +453,9 @@ async def test_mcp_dynamic_article_extraction(domain_info):
         pytest.fail(f"An unexpected error occurred during direct call or assertion: {e}. URL: {article_url}")
 
     # Add a small delay if running in Docker to be nice to target sites
-    if IS_DOCKER_TEST: await asyncio.sleep(2) # Use asyncio.sleep for async tests
+    if IS_DOCKER_TEST: 
+        print("Using smart sleep for rate limiting...")
+        await smart_sleep_async(article_url, seconds=5) # Smart delay between dynamic tests
 
 
 # Helper function to find an article link on a domain's page
@@ -600,8 +665,8 @@ def test_dynamic_article_extraction(domain_info):
          pytest.fail(f"An unexpected error occurred during API call or assertion: {e}. URL: {article_url}")
     finally:
          if IS_DOCKER_TEST: 
-             print("Sleeping...")
-             time.sleep(5) # Longer delay between dynamic tests 
+             print("Using smart sleep for rate limiting...")
+             smart_sleep(article_url, seconds=5) # Smart delay between dynamic tests
 
 # --- MCP Integration Tests ---
 # These test the actual MCP server via the protocol
@@ -617,7 +682,8 @@ async def test_mcp_integration_extract_example_com():
     assert result["error_message"] is None
     assert result["final_url"] in [url, url + '/']
     assert list(result.keys()) == ["extracted_text", "status", "error_message", "final_url"]
-    if IS_DOCKER_TEST: await asyncio.sleep(1) # Small delay between tests
+    if IS_DOCKER_TEST: 
+        await smart_sleep_async(url)
 
 @pytest.mark.asyncio
 async def test_mcp_integration_extract_redirect_success():
@@ -630,7 +696,8 @@ async def test_mcp_integration_extract_redirect_success():
     assert result["error_message"] is None
     assert result["final_url"] != url
     assert list(result.keys()) == ["extracted_text", "status", "error_message", "final_url"]
-    if IS_DOCKER_TEST: await asyncio.sleep(1)
+    if IS_DOCKER_TEST: 
+        await smart_sleep_async(url)
 
 @pytest.mark.asyncio
 async def test_mcp_integration_extract_invalid_redirect_404():
@@ -646,7 +713,8 @@ async def test_mcp_integration_extract_invalid_redirect_404():
     assert result["error_message"] is None
     assert result["final_url"] != url # Check that a redirect occurred 
     assert list(result.keys()) == ["extracted_text", "status", "error_message", "final_url"]
-    if IS_DOCKER_TEST: await asyncio.sleep(1)
+    if IS_DOCKER_TEST: 
+        await smart_sleep_async(url)
 
 @pytest.mark.asyncio
 async def test_mcp_integration_extract_nonexistent_domain():
@@ -659,7 +727,8 @@ async def test_mcp_integration_extract_nonexistent_domain():
     assert result["extracted_text"] == ""
     assert result["final_url"] == url
     assert list(result.keys()) == ["extracted_text", "status", "error_message", "final_url"]
-    if IS_DOCKER_TEST: await asyncio.sleep(1)
+    if IS_DOCKER_TEST: 
+        await smart_sleep_async(url)
 
 # --- Dynamic Extraction Tests via Direct Call (MCP Simulation) ---
 # ... existing simulation tests ...

@@ -83,6 +83,9 @@ services:
     environment:
       - PYTEST_ADDOPTS=--disable-warnings # Optional: Suppress pytest warnings
       - PYTHONUNBUFFERED=1 # Added for consistency
+      # Added environment variables for MCP server connection
+      - MCP_SERVER_HOST=mcp_server
+      - MCP_SERVER_PORT=${MCP_SERVER_PORT:-0} # Use 0 (stdio) by default, but allow override
     # Mount test code and potentially shared source code if needed
     volumes:
       - ./tests:/app/tests
@@ -106,13 +109,15 @@ services:
     container_name: webscraper_tester
     depends_on:
       - webscraper
-      # - mcp_server # MCP tests are now run via test_mcp, not directly dependent here? Or keep for full suite run? Kept for now.
-      - mcp_server
+      # Removed dependency on mcp_server since we're using stdio approach
     environment:
       # Explicitly set the URL and Port for the API service
-      - WEBSCRAPER_SERVICE_URL=http://webscraper:9001
+      - WEBSCRAPER_SERVICE_URL=http://webscraper:${PORT:-9001}
       # MCP server address doesn't depend on the API port
       - MCP_SERVER_ADDRESS=mcp://mcp_server # Kept for reference, though stdio is used now
+      # Added environment variables for MCP server connection
+      - MCP_SERVER_HOST=mcp_server
+      - MCP_SERVER_PORT=${MCP_SERVER_PORT:-0} # Use 0 (stdio) by default, but allow override
       - PYTEST_ADDOPTS=--disable-warnings
       - PYTHONUNBUFFERED=1
     volumes:
@@ -121,8 +126,8 @@ services:
     shm_size: '2gb'
     command: >
       sh -c "
-        echo 'Waiting for all services to start...';
-        sleep 15; # Increased wait time
+        echo 'Waiting for webscraper service to start...';
+        sleep 5; # Only wait for webscraper, not mcp_server
         echo 'Running all tests...';
         pytest -v -rs tests/
       "

@@ -3,6 +3,9 @@ from playwright.async_api import async_playwright, TimeoutError as PlaywrightTim
 from bs4 import BeautifulSoup
 import logging
 import re
+from urllib.parse import urlparse
+import time # Added for time tracking
+import asyncio # Added for lock and sleep
 
 # Try different import approaches to handle various contexts
 try:
@@ -21,6 +24,47 @@ except ImportError:
         from src.config import TIMEOUT_SECONDS, USER_AGENT, VIEWPORT_WIDTH, VIEWPORT_HEIGHT
 
 logger = logging.getLogger(__name__)
+
+# --- Rate Limiting Globals ---
+_domain_access_times = {}
+_domain_lock = asyncio.Lock()
+MIN_SECONDS_BETWEEN_REQUESTS = 2 # Be polite: Wait at least 2 seconds between requests to the same domain
+
+def get_domain_from_url(url):
+    """Extract the domain from a URL, removing www. prefix"""
+    try:
+        parsed = urlparse(url)
+        # Handle cases where netloc might be empty or invalid
+        domain = parsed.netloc
+        if not domain:
+            return None
+        return domain.replace("www.", "")
+    except ValueError:
+        logger.warning(f"Could not parse domain from URL: {url}")
+        return None
+
+async def apply_rate_limiting(url: str):
+    """Checks and applies delay if hitting the same domain too frequently."""
+    domain = get_domain_from_url(url)
+    if not domain:
+        logger.debug(f"No valid domain for rate limiting: {url}")
+        return # Cannot rate limit without a domain
+
+    async with _domain_lock:
+        current_time = time.time()
+        last_access_time = _domain_access_times.get(domain)
+
+        if last_access_time:
+            time_since_last = current_time - last_access_time
+            if time_since_last < MIN_SECONDS_BETWEEN_REQUESTS:
+                sleep_duration = MIN_SECONDS_BETWEEN_REQUESTS - time_since_last
+                logger.info(f"Rate limiting {domain}: Sleeping for {sleep_duration:.2f}s")
+                await asyncio.sleep(sleep_duration)
+                # Update current_time after sleeping
+                current_time = time.time()
+
+        # Update the last access time for this domain
+        _domain_access_times[domain] = current_time
 
 async def extract_text_from_url(url: str) -> dict:
     """Fetches and extracts primary text content from a URL using Playwright.
@@ -57,6 +101,9 @@ async def extract_text_from_url(url: str) -> dict:
             page.set_default_timeout(TIMEOUT_SECONDS * 1000)
 
             try:
+                # --- Apply Rate Limiting BEFORE navigation ---
+                await apply_rate_limiting(url)
+                
                 logger.info(f"Navigating to URL: {url}")
                 response = await page.goto(url, wait_until="domcontentloaded")
                 result["final_url"] = page.url # Update with the final URL after redirects
@@ -98,6 +145,7 @@ async def extract_text_from_url(url: str) -> dict:
                     await browser.close()
                     return result
 
+                # For some sites, the initial load doesn't have full content, so we need to wait
                 # Wait for potential dynamic content loading - a simple heuristic
                 # Only wait if the initial fetch was successful and not likely a 404
                 await asyncio.sleep(3) # Give some time for JS execution
@@ -105,6 +153,9 @@ async def extract_text_from_url(url: str) -> dict:
                 logger.info(f"Extracting content from: {result['final_url']}")
                 html_content = await page.content()
 
+                # Parse the domain to use domain-specific extraction strategies
+                domain = urlparse(result["final_url"]).netloc.lower()
+                
                 # --- Text Extraction Logic --- 
                 soup = BeautifulSoup(html_content, 'html.parser')
 
@@ -112,17 +163,57 @@ async def extract_text_from_url(url: str) -> dict:
                 # Added more common non-content tags
                 for script_or_style in soup(['script', 'style', 'nav', 'footer', 'aside', 'header', 'form', 'button', 'input', 'select', 'textarea', 'label', 'iframe', 'figure', 'figcaption']):
                     script_or_style.decompose()
+                
+                # Domain-specific extraction strategies
+                target_element = None
+                
+                # Handle dev.to and forem.com (which dev.to redirects to) domains
+                if 'dev.to' in domain or 'forem.com' in domain:
+                    logger.info(f"Using specialized extraction for dev.to/forem.com")
+                    
+                    # First look for the article tag with .crayons-article class
+                    target_element = soup.find('article', class_='crayons-article')
+                    
+                    # If not found, look for the main content div with id=article-body
+                    if not target_element:
+                        target_element = soup.find('div', id='article-body')
+                    
+                    # Sometimes the content is in div.article-body
+                    if not target_element:
+                        target_element = soup.find('div', class_='article-body')
+                    
+                    # Also try finding the main section with article role
+                    if not target_element:
+                        target_element = soup.find('section', attrs={'role': 'main'})
+                    
+                    # Try to include the title for dev.to articles
+                    title_element = soup.find('h1')
+                    title_text = title_element.get_text(strip=True) if title_element else ""
+                    
+                    if target_element:
+                        # Get text with the title included
+                        text = title_text + "\n\n" + target_element.get_text(separator='\n', strip=True)
+                        text = re.sub(r'\n\s*\n', '\n\n', text).strip()
+                        
+                        # dev.to often has short content that is still valid, so use a lower threshold
+                        if text and len(text) > 30:  # Even lower threshold for dev.to/forem.com
+                            result["extracted_text"] = text
+                            result["status"] = "success"
+                            await browser.close()
+                            return result
+                
+                # General extraction if domain-specific logic didn't succeed
+                if not target_element:
+                    # Attempt to find common main content containers
+                    main_content = soup.find('article') or soup.find('main') or soup.find(role='main')
+                    # Fallback: check for common content divs if no semantic tag found
+                    if not main_content:
+                        common_divs = soup.find_all('div', class_=lambda x: x and ('content' in x or 'post' in x or 'entry' in x or 'article' in x))
+                        if common_divs:
+                             # Find the largest div among common ones, assuming it's the main content
+                             main_content = max(common_divs, key=lambda tag: len(tag.get_text(strip=True)))
 
-                # Attempt to find common main content containers
-                main_content = soup.find('article') or soup.find('main') or soup.find(role='main')
-                # Fallback: check for common content divs if no semantic tag found
-                if not main_content:
-                    common_divs = soup.find_all('div', class_=lambda x: x and ('content' in x or 'post' in x or 'entry' in x or 'article' in x))
-                    if common_divs:
-                         # Find the largest div among common ones, assuming it's the main content
-                         main_content = max(common_divs, key=lambda tag: len(tag.get_text(strip=True)))
-
-                target_element = main_content if main_content else soup.body
+                    target_element = main_content if main_content else soup.body
                 
                 if not target_element:
                     logger.warning(f"Could not find body tag for {result['final_url']}")
