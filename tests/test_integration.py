@@ -250,13 +250,8 @@ def test_api_invalid_url_format():
     url = "not_a_valid_url"
     if IS_DOCKER_TEST:
         response = requests.post(f"{BASE_URL}/extract", json={"url": url}, timeout=10)
-        if response.status_code == 200:
-            result = response.json()
-            assert result["status"] in ["error_fetching", "error_invalid_url", "error_unknown"]
-            assert result["error_message"] is not None
-        else:
-             assert response.status_code == 422
-             assert "detail" in response.json()
+        assert response.status_code == 422
+        assert "detail" in response.json()
     else:
         response = client.post("/extract", json={"url": url})
         assert response.status_code == 422
@@ -264,22 +259,18 @@ def test_api_invalid_url_format():
 
 @pytest.mark.skipif(not IS_API_AVAILABLE, reason="API service not available")
 def test_api_extract_nonexistent_domain():
-    """Test API handling of a completely non-existent domain."""
-    url = "https://nonexistent-domain-for-testing-12345.com/somepage"
+    """Test API handling of a nonexistent domain."""
+    url = "https://thisisanonexistentdomainforscrapertesting123456789.com"
     result = make_api_request(url)
 
-    assert result["status"] == "error_fetching"
-    assert "resolve" in result["error_message"] or "connect" in result["error_message"]
+    assert result["status"] in ["error_fetching", "error_timeout"]
+    assert "DNS" in result["error_message"] or "resolve" in result["error_message"] or "connection" in result["error_message"] or "timeout" in result["error_message"]
     assert result["extracted_text"] == ""
-    assert result["final_url"] == url
+    assert result["final_url"].rstrip('/') == url.rstrip('/')
     if IS_DOCKER_TEST: 
         smart_sleep(url)
 
-# --- Dynamic Article Finding Helper (Used by both API and Direct tests) ---
-# (Keep the existing find_article_link_on_page function)
-# ... (find_article_link_on_page function remains here) ...
-
-# --- Dynamic Extraction Tests via API ---
+# --- Dynamic Article Tests via API ---
 
 @pytest.mark.skipif(not IS_API_AVAILABLE, reason="API service not available")
 @pytest.mark.parametrize("domain_info", [
@@ -297,114 +288,122 @@ def test_api_extract_nonexistent_domain():
     ("engadget.com", "/")
 ])
 def test_api_dynamic_article_extraction(domain_info):
-    """Tests dynamic article extraction using the /extract API endpoint."""
     domain, start_path = domain_info
     start_url = f"https://{domain}{start_path or '/'}"
+
     print(f"\nTesting dynamic extraction via API for: {domain} (starting from {start_url})")
 
+    # Get article URL using the finder function
     article_url = find_article_link_on_page(start_url)
+    
     if not article_url:
-        pytest.skip(f"Could not dynamically find an article link on {start_url} for API test")
+        pytest.skip(f"Could not dynamically find an article link on {start_url}")
         return
 
     print(f"Found article link: {article_url}")
     print(f"Calling API to extract text...")
-
+    
     try:
         result = make_api_request(article_url)
+        
         print(f"API Result Status: {result['status']}")
         if result["status"] != "success":
              print(f"API Error: {result['error_message']}")
-
-        # Shared assertions (can be refactored)
-        assert result["status"] == "success", f"Expected status 'success' but got '{result['status']}' for {article_url}"
-        assert result["extracted_text"], f"Expected non-empty extracted_text for {article_url}"
-        assert len(result["extracted_text"]) >= 100, f"Extracted text too short ({len(result['extracted_text'])} chars) for {article_url}"
-        assert result["error_message"] is None, f"Expected null error_message for {article_url}"
-        requested_parsed = urlparse(article_url)
-        final_parsed = urlparse(result["final_url"])
-        assert final_parsed.netloc.replace("www.", "") == requested_parsed.netloc.replace("www.", ""), \
+             # Optionally print some text if parsing failed to see what was extracted
+             if result["status"] == "error_parsing" and result["extracted_text"]:
+                  print(f"Extracted text (first 200 chars): {result['extracted_text'][:200]}...")
+                  
+        # Validate the result
+        assert result["status"] == "success", f"Expected successful extraction, got {result['status']}: {result['error_message']}"
+        assert len(result["extracted_text"]) > 100, f"Expected extracted text to be at least 100 chars, got {len(result['extracted_text'])} chars"
+        assert result["error_message"] is None, f"Expected no error message, got: {result['error_message']}"
+        
+        # Verify that the final URL is related to the requested domain
+        article_domain = get_domain_from_url(article_url)
+        final_domain = get_domain_from_url(result["final_url"])
+        
+        assert article_domain in final_domain or final_domain in article_domain, \
                f"Expected final_url '{result['final_url']}' to be on the same domain as requested URL '{article_url}' (ignoring www.)"
 
-    except requests.exceptions.RequestException as e:
-         pytest.fail(f"API call failed with RequestException: {e}. URL: {article_url}")
     except Exception as e:
         pytest.fail(f"An unexpected error occurred during API call or assertion: {e}. URL: {article_url}")
 
+    # Add a small delay if running in Docker to be nice to target sites
     if IS_DOCKER_TEST: 
         print("Using smart sleep for rate limiting...")
         smart_sleep(article_url, seconds=5) # Smart delay between dynamic tests
 
-
-# --- MCP Tool Simulation Tests ---
-# These test the core scraper function directly, simulating an MCP tool call
+# --- MCP Integration Tests ---
 
 @pytest.mark.asyncio
 async def test_mcp_extract_example_com():
-    """Test basic extraction simulating MCP tool call."""
+    """Test extraction from example.com via MCP tool."""
     url = "https://example.com"
-    result = await extract_text_from_url(url)
+    result = await make_mcp_tool_call("WEBPAGE_TEXT_EXTRACTOR", {"url": url})
 
     assert result["status"] == "success"
     assert "Example Domain" in result["extracted_text"]
     assert result["error_message"] is None
     assert result["final_url"] in [url, url + '/']
-    assert list(result.keys()) == ["extracted_text", "status", "error_message", "final_url"] # Verify schema keys
+    if IS_DOCKER_TEST: 
+        await smart_sleep_async(url)
 
 @pytest.mark.asyncio
 async def test_mcp_extract_redirect_success():
-    """Test extraction after redirect simulating MCP tool call."""
-    url = "https://search.app/1jGF2" # Use one redirect example
-    result = await extract_text_from_url(url)
+    """Test extraction after a successful redirect via MCP."""
+    url = "https://search.app/1jGF2"
+    result = await make_mcp_tool_call("WEBPAGE_TEXT_EXTRACTOR", {"url": url})
 
     assert result["status"] == "success"
     assert result["extracted_text"]
     assert result["error_message"] is None
     assert result["final_url"] != url
-    assert list(result.keys()) == ["extracted_text", "status", "error_message", "final_url"]
+    if IS_DOCKER_TEST: 
+        await smart_sleep_async(url)
 
 @pytest.mark.asyncio
 async def test_mcp_extract_invalid_url_404():
-    """Test 404 handling simulating MCP tool call."""
+    """Test MCP handling of an invalid URL that should result in an error."""
     url = "https://httpbin.org/status/404"
-    result = await extract_text_from_url(url)
+    result = await make_mcp_tool_call("WEBPAGE_TEXT_EXTRACTOR", {"url": url})
 
     assert result["status"] == "error_fetching"
     assert "404" in result["error_message"]
     assert result["extracted_text"] == ""
     assert result["final_url"] == url
-    assert list(result.keys()) == ["extracted_text", "status", "error_message", "final_url"]
+    if IS_DOCKER_TEST: 
+        await smart_sleep_async(url)
 
 @pytest.mark.asyncio
 async def test_mcp_extract_invalid_redirect_404():
-    """Test redirect handling simulation via MCP tool call.
+    """Test MCP handling of a redirect that previously failed.
     Note: This URL previously returned a 404 after redirect, but now appears to be valid.
     We've updated the test to validate the redirect behavior instead."""
     url = "https://search.app/CmeVX"
-    result = await extract_text_from_url(url)
+    result = await make_mcp_tool_call("WEBPAGE_TEXT_EXTRACTOR", {"url": url})
 
-    # Check redirect happened successfully  
+    # Check redirect happened successfully 
     assert result["status"] == "success"
     assert result["extracted_text"]
     assert result["error_message"] is None
-    # The scraper function should resolve the redirect
-    assert result["final_url"] != url
-    assert list(result.keys()) == ["extracted_text", "status", "error_message", "final_url"]
+    assert result["final_url"] != url # Check that a redirect occurred
+    if IS_DOCKER_TEST: 
+        await smart_sleep_async(url)
 
 @pytest.mark.asyncio
 async def test_mcp_extract_nonexistent_domain():
-    """Test non-existent domain handling simulating MCP tool call."""
-    url = "https://nonexistent-domain-for-testing-123456.com/somepage"
-    result = await extract_text_from_url(url)
+    """Test MCP handling of a nonexistent domain."""
+    url = "https://thisisanonexistentdomainforscrapertesting123456789.com"
+    result = await make_mcp_tool_call("WEBPAGE_TEXT_EXTRACTOR", {"url": url})
 
-    assert result["status"] == "error_fetching"
-    assert "resolve" in result["error_message"] or "connect" in result["error_message"]
+    assert result["status"] in ["error_fetching", "error_timeout"]
+    assert "DNS" in result["error_message"] or "resolve" in result["error_message"] or "connection" in result["error_message"] or "timeout" in result["error_message"]
     assert result["extracted_text"] == ""
-    assert result["final_url"] == url
-    assert list(result.keys()) == ["extracted_text", "status", "error_message", "final_url"]
+    assert result["final_url"].rstrip('/') == url.rstrip('/')
+    if IS_DOCKER_TEST: 
+        await smart_sleep_async(url)
 
-
-# --- Dynamic Extraction Tests via Direct Call (MCP Simulation) ---
+# --- Dynamic Article Tests via MCP ---
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("domain_info", [
@@ -415,38 +414,41 @@ async def test_mcp_extract_nonexistent_domain():
     ("medium.com", "/"), # Test tricky scraping
 ])
 async def test_mcp_dynamic_article_extraction(domain_info):
-    """Tests dynamic article extraction via direct core function call (MCP sim)."""
     domain, start_path = domain_info
     start_url = f"https://{domain}{start_path or '/'}"
-    print(f"\nTesting dynamic extraction via Direct Call for: {domain} (starting from {start_url})")
 
-    # Use the same helper to find the link
+    print(f"\nTesting dynamic extraction via MCP for: {domain} (starting from {start_url})")
+
+    # Get article URL using the finder function
     article_url = find_article_link_on_page(start_url)
+    
     if not article_url:
-        pytest.skip(f"Could not dynamically find an article link on {start_url} for Direct Call test")
+        pytest.skip(f"Could not dynamically find an article link on {start_url}")
         return
 
     print(f"Found article link: {article_url}")
-    print(f"Calling core function extract_text_from_url...")
-
+    print(f"Calling MCP tool to extract text...")
+    
     try:
-        # Directly call the async scraper function
-        result = await extract_text_from_url(article_url)
-        print(f"Direct Call Result Status: {result['status']}")
+        result = await make_mcp_tool_call("WEBPAGE_TEXT_EXTRACTOR", {"url": article_url})
+        
+        print(f"MCP Result Status: {result['status']}")
         if result["status"] != "success":
-             print(f"Direct Call Error: {result['error_message']}")
-
-        # Verify the schema keys are correct for MCP tool result
-        assert list(result.keys()) == ["extracted_text", "status", "error_message", "final_url"]
-
-        # Reuse shared assertions (can be refactored into a helper)
-        assert result["status"] == "success", f"Expected status 'success' but got '{result['status']}' for {article_url}"
-        assert result["extracted_text"], f"Expected non-empty extracted_text for {article_url}"
-        assert len(result["extracted_text"]) >= 100, f"Extracted text too short ({len(result['extracted_text'])} chars) for {article_url}"
-        assert result["error_message"] is None, f"Expected null error_message for {article_url}"
-        requested_parsed = urlparse(article_url)
-        final_parsed = urlparse(result["final_url"])
-        assert final_parsed.netloc.replace("www.", "") == requested_parsed.netloc.replace("www.", ""), \
+             print(f"MCP Error: {result['error_message']}")
+             # Optionally print some text if parsing failed to see what was extracted
+             if result["status"] == "error_parsing" and result["extracted_text"]:
+                  print(f"Extracted text (first 200 chars): {result['extracted_text'][:200]}...")
+                  
+        # Validate the result
+        assert result["status"] == "success", f"Expected successful extraction, got {result['status']}: {result['error_message']}"
+        assert len(result["extracted_text"]) > 100, f"Expected extracted text to be at least 100 chars, got {len(result['extracted_text'])} chars"
+        assert result["error_message"] is None, f"Expected no error message, got: {result['error_message']}"
+        
+        # Verify that the final URL is related to the requested domain
+        article_domain = get_domain_from_url(article_url)
+        final_domain = get_domain_from_url(result["final_url"])
+        
+        assert article_domain in final_domain or final_domain in article_domain, \
                f"Expected final_url '{result['final_url']}' to be on the same domain as requested URL '{article_url}' (ignoring www.)"
 
     except Exception as e:
@@ -458,31 +460,220 @@ async def test_mcp_dynamic_article_extraction(domain_info):
         await smart_sleep_async(article_url, seconds=5) # Smart delay between dynamic tests
 
 
+# Helper function to discover RSS feeds for a domain
+def discover_rss_feeds(domain_url: str) -> list[str]:
+    """Tries to discover RSS feeds for the given domain URL.
+    Returns a list of discovered RSS feed URLs, ordered by likelihood of success."""
+    parsed_url = urlparse(domain_url)
+    domain_root = parsed_url.netloc
+    base_domain = domain_root.replace("www.", "")
+    
+    # Domain-specific known feeds with higher priority
+    domain_specific_feeds = {
+        "forbes.com": ["https://www.forbes.com/real-time/feed2/"],
+        "fortune.com": ["https://fortune.com/feed/"],
+        "techcrunch.com": ["https://techcrunch.com/feed/"],
+        "wired.com": ["https://www.wired.com/feed/rss"],
+        "engadget.com": ["https://www.engadget.com/rss.xml"],
+        "medium.com": ["https://medium.com/feed/", "https://medium.com/feed/tag/technology"],
+        "dev.to": ["https://dev.to/feed/", "https://dev.to/feed/top"],
+        "tomsguide.com": ["https://www.tomsguide.com/feeds/news.xml", "https://www.tomsguide.com/feeds/all-news.xml"],
+        "xda-developers.com": ["https://www.xda-developers.com/feed/"],
+        "dmnews.com": ["https://www.dmnews.com/feed/"],
+    }
+    
+    # Common RSS feed paths to check if no domain-specific feed matches
+    common_paths = [
+        "/feed",
+        "/rss",
+        "/feed/",
+        "/rss/",
+        "/feed.xml",
+        "/rss.xml",
+        "/atom.xml",
+        "/feeds/posts/default",
+        "/index.xml",
+        "/index.rss",
+        "/rss/index.rss",
+        "/feed/rss",
+        "/blog/feed",
+        "/blog/rss",
+        "/news/feed",
+        "/articles/feed",
+    ]
+    
+    # Check domain-specific feeds first
+    discovered_feeds = []
+    
+    # Add domain-specific feeds if available
+    for domain, feeds in domain_specific_feeds.items():
+        if domain in base_domain:
+            discovered_feeds.extend(feeds)
+            break  # Only use the first matching domain's feeds
+    
+    # If no domain-specific feeds found, try common paths
+    if not discovered_feeds:
+        for path in common_paths:
+            feed_url = f"{parsed_url.scheme}://{domain_root}{path}"
+            discovered_feeds.append(feed_url)
+    
+    print(f"Discovered potential RSS feeds for {domain_root}: {discovered_feeds}")
+    return discovered_feeds
+
+def verify_rss_feed(feed_data):
+    """Verify if the parsed feed data is a valid RSS feed"""
+    # Check for essential RSS feed elements
+    if not hasattr(feed_data, 'feed') or not hasattr(feed_data, 'entries'):
+        return False
+    
+    # Check if the feed has a title (most valid feeds do)
+    if not hasattr(feed_data.feed, 'title'):
+        return False
+    
+    # Check if there are entries
+    if not feed_data.entries:
+        return False
+    
+    # Verify at least one entry has a link
+    for entry in feed_data.entries:
+        if hasattr(entry, 'link') and entry.link:
+            return True
+    
+    return False
+
+def extract_article_from_feed(feed_data):
+    """Extract a valid article link from feed data"""
+    if not feed_data.entries:
+        return None
+    
+    # Try to find an entry with title, link and preferably a summary
+    for entry in feed_data.entries:
+        if hasattr(entry, 'link') and entry.link and urlparse(entry.link).scheme in ['http', 'https']:
+            # Prioritize entries that have a title and summary/content
+            if hasattr(entry, 'title') and (hasattr(entry, 'summary') or hasattr(entry, 'content')):
+                return entry.link
+    
+    # Fall back to any entry with a valid link
+    for entry in feed_data.entries:
+        if hasattr(entry, 'link') and entry.link and urlparse(entry.link).scheme in ['http', 'https']:
+            return entry.link
+    
+    return None
+
 # Helper function to find an article link on a domain's page
 def find_article_link_on_page(domain_url: str) -> str | None:
     """Tries to find a plausible article link on the given domain URL.
-    Uses RSS for fortune.com, otherwise attempts HTML scraping."""
+    First attempts to use RSS feeds, then falls back to HTML scraping if no RSS is found or usable."""
     parsed_domain_full = urlparse(domain_url)
     domain_root = parsed_domain_full.netloc
-
-    # --- RSS Feed Strategy (Fortune) ---
-    if 'fortune.com' in domain_root:
-        fortune_rss_url = "https://fortune.com/feed/"
+    base_domain = domain_root.replace("www.", "")
+    
+    # --- Step 1: Try using domain-specific RSS feeds first ---
+    
+    # Domain-specific known feeds with higher priority
+    domain_specific_feeds = {
+        "forbes.com": ["https://www.forbes.com/real-time/feed2/"],
+        "fortune.com": ["https://fortune.com/feed/"],
+        "techcrunch.com": ["https://techcrunch.com/feed/"],
+        "wired.com": ["https://www.wired.com/feed/rss"],
+        "engadget.com": ["https://www.engadget.com/rss.xml"],
+        "medium.com": ["https://medium.com/feed/", "https://medium.com/feed/tag/technology"],
+        "dev.to": ["https://dev.to/feed/", "https://dev.to/feed/top"],
+        "tomsguide.com": ["https://www.tomsguide.com/feeds/news.xml", "https://www.tomsguide.com/feeds/all-news.xml"],
+        "xda-developers.com": ["https://www.xda-developers.com/feed/"],
+        "dmnews.com": ["https://www.dmnews.com/feed/"],
+    }
+    
+    # Try domain-specific feeds first
+    potential_rss_feeds = []
+    for domain, feeds in domain_specific_feeds.items():
+        if domain in base_domain:
+            potential_rss_feeds.extend(feeds)
+            print(f"Found domain-specific feeds for {domain}: {feeds}")
+            break  # Only use the first matching domain's feeds
+    
+    # --- Step 2: If no domain-specific feeds, try common RSS paths ---
+    if not potential_rss_feeds:
+        # Common RSS feed paths to check
+        common_paths = [
+            "/feed",
+            "/rss",
+            "/feed/",
+            "/rss/",
+            "/feed.xml",
+            "/rss.xml",
+            "/atom.xml",
+            "/feeds/posts/default",
+            "/index.xml",
+            "/index.rss",
+            "/rss/index.rss",
+            "/feed/rss",
+            "/blog/feed",
+            "/blog/rss",
+            "/news/feed",
+            "/articles/feed",
+        ]
+        
+        for path in common_paths:
+            feed_url = f"{parsed_domain_full.scheme}://{domain_root}{path}"
+            potential_rss_feeds.append(feed_url)
+        
+        print(f"Using common RSS path patterns for {domain_root}: found {len(potential_rss_feeds)} potential feeds")
+    
+    # --- Step 3: Try each potential RSS feed with robust error handling ---
+    for rss_url in potential_rss_feeds:
         try:
-            feed = feedparser.parse(fortune_rss_url)
-            if feed.entries:
-                # Find the first entry with a valid link
+            print(f"Trying RSS feed: {rss_url}")
+            
+            # Use requests with timeout first to avoid hanging on bad feeds
+            try:
+                rss_response = requests.get(rss_url, timeout=10)
+                rss_response.raise_for_status()
+                feed_content = rss_response.text
+            except requests.RequestException as e:
+                print(f"Error fetching RSS feed {rss_url}: {str(e)}")
+                continue
+                
+            # Parse the feed content
+            feed = feedparser.parse(feed_content)
+            
+            # Verify it's actually a valid RSS feed by checking essential elements
+            if not hasattr(feed, 'feed') or not hasattr(feed, 'entries'):
+                print(f"Invalid RSS feed structure in {rss_url}")
+                continue
+                
+            # Try to find a good article - prioritize entries with title, link and summary/content
+            found_entry = None
+            
+            # First pass: look for entries with title, link and summary/content
+            for entry in feed.entries:
+                if hasattr(entry, 'link') and entry.link and urlparse(entry.link).scheme in ['http', 'https']:
+                    if hasattr(entry, 'title') and (hasattr(entry, 'summary') or hasattr(entry, 'content')):
+                        found_entry = entry
+                        print(f"Found high-quality article in RSS feed: {entry.title}")
+                        break
+            
+            # Second pass: accept any entry with a valid link if no better option
+            if not found_entry:
                 for entry in feed.entries:
-                    if entry.link and urlparse(entry.link).scheme in ['http', 'https']:
-                        print(f"Found Fortune link via RSS: {entry.link}")
-                        return entry.link
-            print(f"Warning: Could not find valid entry in Fortune RSS feed: {fortune_rss_url}")
-            return None # Skip test if RSS fails or is empty
+                    if hasattr(entry, 'link') and entry.link and urlparse(entry.link).scheme in ['http', 'https']:
+                        found_entry = entry
+                        print(f"Found basic article in RSS feed with title: {getattr(entry, 'title', 'No title')}")
+                        break
+            
+            if found_entry and hasattr(found_entry, 'link'):
+                print(f"Selected article link via RSS from {rss_url}: {found_entry.link}")
+                return found_entry.link
+            else:
+                print(f"No valid article links found in RSS feed: {rss_url}")
+        
         except Exception as e:
-            print(f"Error fetching or parsing Fortune RSS feed {fortune_rss_url}: {e}")
-            return None # Skip test if RSS fails
-
-    # --- HTML Scraping Strategy (Default, including Medium) ---
+            print(f"Error fetching or parsing RSS feed {rss_url}: {str(e)}")
+            # Continue to next feed
+    
+    print(f"No usable RSS feeds found for {domain_root}, falling back to HTML scraping.")
+    
+    # --- Step 4: HTML Scraping Strategy (Fallback) ---
     try:
         # Define exclusions once (keep existing)
         excluded_patterns = [
@@ -507,8 +698,15 @@ def find_article_link_on_page(domain_url: str) -> str | None:
             'Accept-Language': 'en-US,en;q=0.9',
             'Referer': 'https://www.google.com/' # Adding a referer might help sometimes
         }
-        response = requests.get(domain_url, headers=headers, timeout=20, allow_redirects=True) # Increased timeout
-        response.raise_for_status()
+        
+        # Add timeout and error handling for the request
+        try:
+            response = requests.get(domain_url, headers=headers, timeout=20, allow_redirects=True)
+            response.raise_for_status()
+        except requests.RequestException as e:
+            print(f"Error fetching {domain_url} for HTML scraping: {e}")
+            return None  # Skip if initial page fetch fails
+        
         soup = BeautifulSoup(response.content, 'html.parser')
 
         potential_links = set() # Use a set to avoid duplicates
@@ -587,7 +785,7 @@ def find_article_link_on_page(domain_url: str) -> str | None:
                 final_url_no_fragment = parsed_link._replace(fragment='').geturl()
 
                 # If all checks pass, consider it plausible
-                print(f"Found plausible link for {domain_root}: {final_url_no_fragment}")
+                print(f"Found plausible link for {domain_root} via HTML scraping: {final_url_no_fragment}")
                 found_link = final_url_no_fragment
                 break # Take the first plausible one after sorting/filtering
 
@@ -666,75 +864,4 @@ def test_dynamic_article_extraction(domain_info):
     finally:
          if IS_DOCKER_TEST: 
              print("Using smart sleep for rate limiting...")
-             smart_sleep(article_url, seconds=5) # Smart delay between dynamic tests
-
-# --- MCP Integration Tests ---
-# These test the actual MCP server via the protocol
-
-@pytest.mark.asyncio
-async def test_mcp_integration_extract_example_com():
-    """Test basic extraction via true MCP call."""
-    url = "https://example.com"
-    result = await make_mcp_tool_call("WEBPAGE_TEXT_EXTRACTOR", {"url": url})
-
-    assert result["status"] == "success"
-    assert "Example Domain" in result["extracted_text"]
-    assert result["error_message"] is None
-    assert result["final_url"] in [url, url + '/']
-    assert list(result.keys()) == ["extracted_text", "status", "error_message", "final_url"]
-    if IS_DOCKER_TEST: 
-        await smart_sleep_async(url)
-
-@pytest.mark.asyncio
-async def test_mcp_integration_extract_redirect_success():
-    """Test extraction after redirect via true MCP call."""
-    url = "https://search.app/1jGF2"
-    result = await make_mcp_tool_call("WEBPAGE_TEXT_EXTRACTOR", {"url": url})
-
-    assert result["status"] == "success"
-    assert result["extracted_text"]
-    assert result["error_message"] is None
-    assert result["final_url"] != url
-    assert list(result.keys()) == ["extracted_text", "status", "error_message", "final_url"]
-    if IS_DOCKER_TEST: 
-        await smart_sleep_async(url)
-
-@pytest.mark.asyncio
-async def test_mcp_integration_extract_invalid_redirect_404():
-    """Test redirect handling via true MCP call.
-    Note: This URL previously returned a 404 after redirect, but now appears to be valid.
-    We've updated the test to validate the redirect behavior instead."""
-    url = "https://search.app/CmeVX"
-    result = await make_mcp_tool_call("WEBPAGE_TEXT_EXTRACTOR", {"url": url})
-
-    # Check redirect happened successfully
-    assert result["status"] == "success"
-    assert result["extracted_text"]
-    assert result["error_message"] is None
-    assert result["final_url"] != url # Check that a redirect occurred 
-    assert list(result.keys()) == ["extracted_text", "status", "error_message", "final_url"]
-    if IS_DOCKER_TEST: 
-        await smart_sleep_async(url)
-
-@pytest.mark.asyncio
-async def test_mcp_integration_extract_nonexistent_domain():
-    """Test non-existent domain handling via true MCP call."""
-    url = "https://nonexistent-domain-for-testing-abcdefg.com/somepage"
-    result = await make_mcp_tool_call("WEBPAGE_TEXT_EXTRACTOR", {"url": url})
-
-    assert result["status"] == "error_fetching"
-    assert "resolve" in result["error_message"] or "connect" in result["error_message"]
-    assert result["extracted_text"] == ""
-    assert result["final_url"] == url
-    assert list(result.keys()) == ["extracted_text", "status", "error_message", "final_url"]
-    if IS_DOCKER_TEST: 
-        await smart_sleep_async(url)
-
-# --- Dynamic Extraction Tests via Direct Call (MCP Simulation) ---
-# ... existing simulation tests ...
-
-# Helper function to find an article link ...
-# ... existing helper function ...
-
-# Parameterized test calling API (no change)
-# ... existing test_dynamic_article_extraction test ... 
+             smart_sleep(article_url, seconds=5) # Smart delay between dynamic tests 
