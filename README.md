@@ -106,15 +106,19 @@ The service also hosts an MCP server exposing the `WEBPAGE_TEXT_EXTRACTOR` tool 
 
 ## Testing
 
-Integration tests using `pytest` are included in `tests/test_integration.py`.
+The project includes a comprehensive test suite using `pytest`:
 
-1.  **Run Tests**:
-    *   Ensure the service containers are not running (`docker compose down`).
-    *   Run the tests using the `test` service defined in `docker-compose.yml`:
-    ```bash
-    docker compose run test
-    ```
-    *   This command builds the necessary images, starts the main service, runs the tests against it, and then tears down the test-specific containers.
+1. **API Tests** (`tests/test_api.py`): Tests the `/extract` API endpoint functionality, request handling, and response formats.
+2. **MCP Tests** (`tests/test_mcp.py`): Tests the MCP server and `WEBPAGE_TEXT_EXTRACTOR` tool implementation.
+3. **Integration Tests** (`tests/test_integration.py`): End-to-end tests covering content extraction from various websites, error handling, and redirect following.
+
+**Running Tests**:
+*   Ensure the service containers are not running (`docker compose down`).
+*   Run the tests using the `test` service defined in `docker-compose.yml`:
+```bash
+docker compose run test
+```
+*   This command builds the necessary images, starts the main service, runs the tests against it, and then tears down the test-specific containers.
 
 ## Development
 
@@ -122,5 +126,5 @@ Integration tests using `pytest` are included in `tests/test_integration.py`.
 *   API endpoint definition is in `src/api.py`.
 *   MCP server and tool definition is in `src/mcp_server.py`.
 *   Configuration is managed in `src/config.py` (loaded from environment variables).
-*   Integration tests (API and simulated MCP) are in `tests/test_integration.py`.
+*   Main application entry point is in `src/main.py`.
 *   Dependencies are in `requirements.txt`. 
