@@ -17,7 +17,7 @@ def discover_rss_feeds(domain_url: str) -> list[str]:
         'techcrunch.com': ['https://techcrunch.com/feed/'],  # VALID: RSS XML (Playwright, checked 2025-06-06)
         'wired.com': ['https://www.wired.com/feed/rss'],  # VALID: RSS XML (Playwright, checked 2025-06-08)
         'engadget.com': ['https://www.engadget.com/rss.xml'],  # VALID: RSS XML (Playwright, checked 2025-06-08)
-        'medium.com': ['https://medium.com/feed/', 'https://medium.com/feed/tag/technology'],  # BLOCKED: Cloudflare challenge, not directly accessible (Playwright, checked 2025-06-08)
+        'medium.com': ['https://medium.com/feed/', 'https://medium.com/feed/tag/technology'],  # VALID: RSS XML (Playwright, checked 2025-06-08)
         'dev.to': ['https://dev.to/feed/', 'https://dev.to/feed/top'],  # VALID: RSS XML (Playwright, checked 2025-06-08)
         'tomsguide.com': ['https://www.tomsguide.com/feeds/news.xml', 'https://www.tomsguide.com/feeds/all-news.xml'],  # VALID: RSS XML (Playwright, checked 2025-06-08)
         'xda-developers.com': ['https://www.xda-developers.com/feed/'],  # VALID: RSS XML (Playwright, checked 2025-06-08)
