@@ -207,6 +207,23 @@ async def extract_text_from_url(url: str) -> dict:
                 logger.info(f"Extracting content from: {result['final_url']}")
                 html_content = await page.content()
 
+                # --- Cloudflare Challenge Detection ---
+                cloudflare_patterns = [
+                    r'Attention Required! \| Cloudflare',
+                    r'cf-browser-verification',
+                    r'Checking your browser before accessing',
+                    r'Please enable JavaScript and Cookies to continue',
+                    r'Cloudflare Ray ID',
+                    r'cloudflare.com/speedtest',
+                    r'Why do I have to complete a CAPTCHA?'
+                ]
+                if any(re.search(pattern, html_content, re.IGNORECASE) for pattern in cloudflare_patterns):
+                    logger.warning(f"Cloudflare challenge detected for {result['final_url']}")
+                    result["status"] = "error_cloudflare"
+                    result["error_message"] = "Cloudflare challenge or anti-bot screen detected. Content extraction blocked."
+                    await browser.close()
+                    return result
+
                 # Parse the domain to use domain-specific extraction strategies
                 domain = urlparse(result["final_url"]).netloc.lower()
                 
