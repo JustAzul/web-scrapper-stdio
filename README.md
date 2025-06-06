@@ -19,6 +19,9 @@ echo '{"url": "https://example.com"}' | docker run -i --rm justazul/web-scrapper
 - Output is always Markdown for easy downstream use.
 - The scraper does not check robots.txt and will attempt to fetch any URL provided.
 - No REST API or MCP server is included; this is a pure stdio tool.
+- All domains with available RSS feeds are now included in the test suite (fortune.com, techcrunch.com, wired.com, engadget.com, medium.com, dev.to, tomsguide.com, xda-developers.com, dmnews.com).
+- Test cases use domain URLs for clear output.
+- The scraper detects and handles Cloudflare challenge screens, returning a specific error status.
 
 ---
 
