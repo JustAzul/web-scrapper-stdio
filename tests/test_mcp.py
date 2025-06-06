@@ -124,7 +124,10 @@ def find_article_link_on_page(domain_url: str) -> str | None:
         ],
         "tomsguide.com": [
             "https://www.tomsguide.com/news/toms-guide-awards-2024"
-        ]
+        ],
+        "medium.com": [
+            "https://blog.medium.com/the-top-medium-stories-of-2024-by-reads-and-shares-2804259a2d23"
+        ],
     }
     domain = urlparse(domain_url).netloc.replace("www.", "")
     for d, urls in fallback_articles.items():
