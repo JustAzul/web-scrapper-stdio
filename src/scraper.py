@@ -162,8 +162,9 @@ async def extract_text_from_url(url: str) -> dict:
 
                 # Domain-specific content selectors to wait for
                 domain_specific_selectors = {
-                    "dev.to": ["article.crayons-article", "div#article-body", "div.article-body", "section[role='main']"],
-                    "forem.com": ["article.crayons-article", "div#article-body", "div.article-body", "section[role='main']"],
+                    "dev.to": ["article.crayons-article", "div#article-body", "div.article-body", "section[role='main']", "#article-show", "div.article-wrapper"],
+                    "forem.com": ["article.crayons-article", "div#article-body", "div.article-body", "section[role='main']", "#article-show", "div.article-wrapper"],
+                    "dmnews.com": ["div.story-content", "div.single-post", "article.content-page", "div.article-content", "div.article-body", "div[itemprop='articleBody']"],
                     "medium.com": ["article", "div.story", "section.story"],
                     "forbes.com": ["div.article-body", "article.article"]
                 }
