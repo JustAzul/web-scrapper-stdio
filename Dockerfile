@@ -41,4 +41,4 @@ EXPOSE ${PORT}
 # Command to run the application using uvicorn
 # Use --host 0.0.0.0 to make it accessible from outside the container
 # Use the PORT environment variable
-CMD uvicorn src.api:app --host 0.0.0.0 --port $PORT 
+CMD ["python", "src/stdio_server.py"] 

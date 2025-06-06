@@ -5,7 +5,6 @@ import logging
 import re
 from urllib.parse import urlparse
 import time # Added for time tracking
-import asyncio # Added for lock and sleep
 
 # Try different import approaches to handle various contexts
 try:

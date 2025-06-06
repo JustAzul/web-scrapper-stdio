@@ -44,34 +44,6 @@ services:
     command: python src/mcp_server.py # Command to run the MCP server
     # Potentially add depends_on if it needs another service, but likely runs independently
 
-  test_api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: webscraper_api_tester
-    depends_on:
-      - webscraper # Wait for the webscraper service to be available
-    environment:
-      # Update URL to use the PORT variable
-      - WEBSCRAPER_SERVICE_URL=http://webscraper:${PORT:-9001}
-      - PYTEST_ADDOPTS=--disable-warnings # Optional: Suppress pytest warnings
-      - PYTHONUNBUFFERED=1
-    # Mount test code and potentially shared source code if needed
-    volumes:
-      - ./tests:/app/tests
-      - ./src:/app/src # Make source code available if tests import from it directly
-    # Increase shared memory size for potential Playwright use within tests
-    shm_size: '2gb'
-    # The command to run the API tests
-    command: >
-      sh -c "
-        echo 'Waiting for webscraper service to start...';
-        # Adjust sleep if needed based on startup time with new port
-        sleep 5;
-        echo 'Running API tests...';
-        pytest -v -rs tests/test_api.py
-      "
-
   test_mcp:
     build:
       context: .
