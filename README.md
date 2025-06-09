@@ -5,7 +5,7 @@
 Run the web scraper as a Docker container that reads JSON lines from stdin and outputs results as JSON lines to stdout:
 
 ```
-echo '{"url": "https://example.com"}' | docker run -i --rm justazul/web-scrapper
+echo '{"url": "https://example.com"}' | docker run -i --rm ghcr.io/justazul/web-scraper-mcp:latest
 ```
 
 - Each input line must be a JSON object with a `url` field.
@@ -51,8 +51,8 @@ echo '{"url": "https://example.com"}' | python src/stdio_server.py
 ## Example: Run in Docker
 
 ```
-docker build -t justazul/web-scrapper .
-echo '{"url": "https://example.com"}' | docker run -i --rm justazul/web-scrapper
+docker build -t ghcr.io/justazul/web-scraper-mcp:latest .
+echo '{"url": "https://example.com"}' | docker run -i --rm ghcr.io/justazul/web-scraper-mcp:latest
 ```
 
 ## Output Example
