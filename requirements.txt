@@ -7,4 +7,5 @@ pytest
 pytest-cov
 feedparser
 pytest-asyncio
-markdownify 
+markdownify
+playwright-stealth 

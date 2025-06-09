@@ -5,6 +5,8 @@ import logging
 import re
 from urllib.parse import urlparse
 import time # Added for time tracking
+import random
+from playwright_stealth import stealth_async
 
 # Try different import approaches to handle various contexts
 try:
@@ -28,6 +30,29 @@ logger = logging.getLogger(__name__)
 _domain_access_times = {}
 _domain_lock = asyncio.Lock()
 MIN_SECONDS_BETWEEN_REQUESTS = 2 # Be polite: Wait at least 2 seconds between requests to the same domain
+
+# --- User Agent and Viewport Pools ---
+USER_AGENTS = [
+    # Chrome (Windows)
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    # Chrome (Mac)
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    # Firefox (Windows)
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0",
+    # Firefox (Mac)
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:120.0) Gecko/20100101 Firefox/120.0",
+    # Edge (Windows)
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
+]
+VIEWPORTS = [
+    {"width": 1920, "height": 1080},
+    {"width": 1366, "height": 768},
+    {"width": 1536, "height": 864},
+    {"width": 1440, "height": 900},
+    {"width": 1600, "height": 900},
+    {"width": 1280, "height": 800},
+]
+LANGUAGES = ["en-US,en;q=0.9", "en-GB,en;q=0.8", "en;q=0.7"]
 
 def get_domain_from_url(url):
     """Extract the domain from a URL, removing www. prefix"""
@@ -87,14 +112,27 @@ async def extract_text_from_url(url: str) -> dict:
 
     try:
         async with async_playwright() as p:
+            # --- Randomize user agent, viewport, and language ---
+            user_agent = random.choice(USER_AGENTS)
+            viewport = random.choice(VIEWPORTS)
+            accept_language = random.choice(LANGUAGES)
             browser = await p.chromium.launch(headless=True)
             context = await browser.new_context(
-                user_agent=USER_AGENT,
-                viewport={'width': VIEWPORT_WIDTH, 'height': VIEWPORT_HEIGHT},
+                user_agent=user_agent,
+                viewport=viewport,
                 java_script_enabled=True,
+                locale=accept_language.split(",")[0],
+                extra_http_headers={"Accept-Language": accept_language},
             )
             page = await context.new_page()
-
+            # --- Apply stealth ---
+            await stealth_async(page)
+            # --- Additional navigator property tweaks (if needed) ---
+            await page.add_init_script(
+                "Object.defineProperty(navigator, 'webdriver', {get: () => undefined});"
+                "Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en']});"
+                "Object.defineProperty(navigator, 'plugins', {get: () => [1,2,3,4,5]});"
+            )
             # Set navigation timeout
             page.set_default_navigation_timeout(TIMEOUT_SECONDS * 1000)
             page.set_default_timeout(TIMEOUT_SECONDS * 1000)
@@ -300,6 +338,16 @@ async def extract_text_from_url(url: str) -> dict:
                 # Add a simple length check to avoid returning just boilerplate/empty strings
                 if not text or len(text) < 100: # Arbitrary threshold, adjust as needed
                     logger.warning(f"No significant text content extracted (length < 100) at {result['final_url']}")
+                    # Fallback: try extracting all visible text from <body> if not already done
+                    if target_element != soup.body and soup.body:
+                        body_text = soup.body.get_text(separator='\n', strip=True)
+                        body_text = re.sub(r'\n\s*\n', '\n\n', body_text).strip()
+                        if body_text and len(body_text) >= 30:
+                            logger.info(f"Fallback: using <body> text for {result['final_url']}")
+                            result["extracted_text"] = body_text
+                            result["status"] = "success"
+                            await browser.close()
+                            return result
                     result["status"] = "error_parsing"
                     result["error_message"] = "No significant text content extracted (too short)."
                 else:
