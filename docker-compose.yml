@@ -23,7 +23,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: web-scraper-mcp-tester
+    container_name: web-scrapper-stdio-tester
     # Removed depends_on as stdio_client starts the server process
     # depends_on:
     #   - mcp_server # Wait for the MCP server service

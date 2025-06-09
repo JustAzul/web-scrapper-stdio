@@ -5,7 +5,7 @@
 Run the web scraper as a Docker container that reads JSON lines from stdin and outputs results as JSON lines to stdout:
 
 ```
-echo '{"url": "https://example.com"}' | docker run -i --rm ghcr.io/justazul/web-scraper-mcp:latest
+echo '{"url": "https://example.com"}' | docker run -i --rm ghcr.io/justazul/web-scrapper-stdio:latest
 ```
 
 - Each input line must be a JSON object with a `url` field.
@@ -30,7 +30,7 @@ echo '{"url": "https://example.com"}' | docker run -i --rm ghcr.io/justazul/web-
 This project is a Python-based web scraper that extracts primary text content from web pages, outputting Markdown via a simple stdio interface. It is designed for use in pipelines, containers, and AI toolchains.
 
 ## Technology Stack
-- Python 3.10+
+- Python 3.9+
 - Playwright
 - BeautifulSoup
 - Markdownify
@@ -51,8 +51,8 @@ echo '{"url": "https://example.com"}' | python src/stdio_server.py
 ## Example: Run in Docker
 
 ```
-docker build -t ghcr.io/justazul/web-scraper-mcp:latest .
-echo '{"url": "https://example.com"}' | docker run -i --rm ghcr.io/justazul/web-scraper-mcp:latest
+docker build -t ghcr.io/justazul/web-scrapper-stdio:latest .
+echo '{"url": "https://example.com"}' | docker run -i --rm ghcr.io/justazul/web-scrapper-stdio:latest
 ```
 
 ## Output Example
@@ -64,8 +64,3 @@ echo '{"url": "https://example.com"}' | docker run -i --rm ghcr.io/justazul/web-
 ## Testing
 - Use the above commands to verify extraction and Markdown output.
 - The tool is suitable for integration in any pipeline that can provide JSON lines to stdin and read JSON lines from stdout.
-
----
-
-# Changelog
-- Now stdio-only, Markdown output, no robots.txt compliance, no REST API/MCP. 

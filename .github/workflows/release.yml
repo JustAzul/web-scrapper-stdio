@@ -28,7 +28,7 @@ jobs:
           docker buildx build \
             --platform linux/amd64,linux/arm64 \
             --build-arg VERSION=${{ github.event.release.tag_name }} \
-            -t ghcr.io/justazul/web-scraper-mcp:${{ github.event.release.tag_name }} \
-            -t ghcr.io/justazul/web-scraper-mcp:latest \
+            -t ghcr.io/${{ steps.repo_owner.outputs.lower }}/web-scrapper-stdio:${{ github.event.release.tag_name }} \
+            -t ghcr.io/${{ steps.repo_owner.outputs.lower }}/web-scrapper-stdio:latest \
             --push \
             . 
