@@ -1,49 +1,22 @@
 version: '3.8'
 
 services:
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args: # Pass build arg here too if mcp_server ever needs the port internally
-        DEFAULT_PORT: ${PORT:-9001}
-    container_name: mcp_server
-    # No ports needed for MCP server unless explicitly connecting over network
-    environment:
-      - PYTHONUNBUFFERED=1
-      # If mcp_server needed the API port, it would be passed here:
-      # - PORT=${PORT:-9001}
-    shm_size: '2gb' # Playwright needs shared memory
-    volumes:
-      - ./src:/app/src
-    command: python src/stdio_server.py # Command to run the stdio server
-    # Potentially add depends_on if it needs another service, but likely runs independently
-
   test:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: web-scrapper-stdio-tester
-    # Removed depends_on as stdio_client starts the server process
-    # depends_on:
-    #   - mcp_server # Wait for the MCP server service
     environment:
-      - PYTEST_ADDOPTS=--disable-warnings # Optional: Suppress pytest warnings
-      - PYTHONUNBUFFERED=1 # Added for consistency
-      # Added environment variables for MCP server connection
-      - MCP_SERVER_HOST=mcp_server
-      - MCP_SERVER_PORT=${MCP_SERVER_PORT:-0} # Use 0 (stdio) by default, but allow override
-    # Mount test code and potentially shared source code if needed
+      - PYTEST_ADDOPTS=--disable-warnings
+      - PYTHONUNBUFFERED=1
+      - MCP_SERVER_PORT=0
     volumes:
       - ./tests:/app/tests
-      - ./src:/app/src # Make source code available if tests import from it directly
-    # Increase shared memory size for potential Playwright use within tests
+      - ./src:/app/src
     shm_size: '2gb'
-    # The command to run the MCP tests
     command: >
       sh -c "
-        echo 'Waiting for MCP server service to start...';
-        sleep 8; # MCP server might need a bit more time to initialize
-        echo 'Running MCP tests...';
-        pytest -v -rs tests/test_mcp.py
+        pip install -r requirements.txt;
+        echo 'Running all tests...';
+        pytest -v -rs tests
       "

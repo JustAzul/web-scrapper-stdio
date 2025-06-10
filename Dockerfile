@@ -1,44 +1,40 @@
-# Use an official Python runtime as a parent image
+# Use Python 3.11 slim as the base image
 FROM python:3.11-slim
 
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
-
-# Set the working directory in the container
+# Set working directory
 WORKDIR /app
 
-# Install system dependencies required by Playwright
+# Set environment variables to prevent Python from buffering stdout/stderr
+ENV PYTHONUNBUFFERED 1
+ENV PYTHONDONTWRITEBYTECODE 1
+
+# Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    # Playwright browser dependencies
-    libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdbus-1-3 \
-    libdrm2 libexpat1 libgbm1 libgcc1 libglib2.0-0 libpango-1.0-0 \
-    libx11-6 libx11-xcb1 libxcb1 libxcomposite1 libxdamage1 libxext6 \
-    libxfixes3 libxrandr2 libxrender1 libxtst6 ca-certificates \
-    fonts-liberation libappindicator3-1 libasound2 xdg-utils wget \
-    # Cleanup
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    libnss3 libnspr4 libasound2 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdbus-1-3 \
+    libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
+    libgbm1 libglib2.0-0 libgtk-3-0 libpango-1.0-0 libcairo2 libasound2 \
+    libatspi2.0-0 libx11-6 libxcb1 libxext6 libxcursor1 libxi6 libxtst6 \
+    libpangocairo-1.0-0 libxss1 \
+    wget gnupg curl ca-certificates fonts-liberation libappindicator3-1 \
+    lsb-release xdg-utils git && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy requirements file
+COPY requirements.txt requirements.txt
 
 # Install Python dependencies
-COPY requirements.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Install Playwright browsers
-# This command downloads the browser binaries into the image
 RUN playwright install --with-deps chromium
 
-# Copy the rest of the application code into the container
+# Copy source code
 COPY ./src /app/src
 
-# Define ARG for default port and ENV for runtime port
+# Set the default port (optional)
 ARG DEFAULT_PORT=9001
-ENV PORT=${PORT:-$DEFAULT_PORT}
+ENV PORT $DEFAULT_PORT
 
-# Expose the port the app runs on (uses the ENV variable)
-EXPOSE ${PORT}
-
-# Command to run the application using uvicorn
-# Use --host 0.0.0.0 to make it accessible from outside the container
-# Use the PORT environment variable
-CMD ["python", "src/stdio_server.py"] 
+# Run the script when the container starts
+CMD ["python", "src/mcp_server.py"] 

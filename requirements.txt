@@ -8,4 +8,6 @@ pytest-cov
 feedparser
 pytest-asyncio
 markdownify
-playwright-stealth 
+playwright-stealth
+pydantic>=2.0.0
+mcp>=1.1.3

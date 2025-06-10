@@ -57,51 +57,6 @@ def fetch_url_content(url: str) -> str:
             lambda d: d.execute_script("return document.readyState") == "complete"
         )
         
-        # Try to identify the domain and wait for domain-specific elements
-        parsed_url = urlparse(driver.current_url)
-        domain = parsed_url.netloc.replace('www.', '')
-        
-        # Define a default fallback selector
-        main_content_selector = 'body'
-        
-        # If it's a known domain, use the first selector as indicator of ready content
-        if domain in KNOWN_SITE_SELECTORS:
-            selectors = KNOWN_SITE_SELECTORS[domain]
-            if selectors:
-                # Use the first selector as an indicator - try to wait for it
-                try:
-                    css_selector = selectors[0]
-                    # Convert from simple selector to CSS selector if needed
-                    if css_selector.startswith("div.") or css_selector.startswith("article"):
-                        # Already CSS format
-                        pass
-                    else:
-                        # Assume it's a tag name
-                        css_selector = f"{css_selector}"
-                    
-                    print(f"Waiting for main content element: {css_selector}", file=sys.stderr)
-                    WebDriverWait(driver, 5).until(
-                        EC.presence_of_element_located((By.CSS_SELECTOR, css_selector))
-                    )
-                    print(f"Main content element found: {css_selector}", file=sys.stderr)
-                except TimeoutException:
-                    print(f"Timed out waiting for main content element: {css_selector}. Continuing anyway.", file=sys.stderr)
-        else:
-            # For unknown domains, wait for any potential content containers
-            generic_content_selectors = ["article", "main", ".content", ".article", "#content", "#main-content"]
-            print("Unknown domain. Trying to wait for common content elements...", file=sys.stderr)
-            
-            for selector in generic_content_selectors:
-                try:
-                    WebDriverWait(driver, 2).until(
-                        EC.presence_of_element_located((By.CSS_SELECTOR, selector))
-                    )
-                    print(f"Found content element: {selector}", file=sys.stderr)
-                    break
-                except TimeoutException:
-                    # Continue to next selector
-                    pass
-
         # Get the final URL after potential redirects
         final_url = driver.current_url
         print(f"Final URL after potential redirects: {final_url}", file=sys.stderr)
@@ -110,83 +65,39 @@ def fetch_url_content(url: str) -> str:
         print("Page source fetched.", file=sys.stderr)
         soup = BeautifulSoup(page_source, 'html.parser')
 
-        # --- Targeted Extraction based on Final Domain ---
-        # Use the final URL's domain to determine the strategy
-        parsed_url = urlparse(final_url)
-        domain = parsed_url.netloc
-        # Handle cases where domain might have www. prefix
-        if domain.startswith('www.'):
-             domain = domain[4:]
-
-        content_container = None
-        specific_selectors_tried = False
-
-        if domain in KNOWN_SITE_SELECTORS:
-            specific_selectors_tried = True
-            selectors = KNOWN_SITE_SELECTORS[domain]
-            print(f"Known domain '{domain}'. Trying specific selectors: {selectors}", file=sys.stderr)
-            for selector in selectors:
-                content_container = soup.select_one(selector)
-                if content_container:
-                    print(f"Found container with selector: {selector}", file=sys.stderr)
-                    break
-            if not content_container:
-                print(f"Specific selectors failed for known domain '{domain}'. Falling back to body.", file=sys.stderr)
-                content_container = soup.body # Fallback for known site if specific fails
-        else:
-            # Check if the original domain was search.app, even if redirected elsewhere
-            original_parsed_url = urlparse(url)
-            original_domain = original_parsed_url.netloc
-            if original_domain == "search.app":
-                 print(f"Original domain was search.app, but redirected to unknown domain '{domain}'. Applying article selector as fallback.", file=sys.stderr)
-                 content_container = soup.select_one('article')
-                 if content_container:
-                      specific_selectors_tried = True # Treat this as a specific attempt
-                      print("Found container with selector: article (search.app fallback)", file=sys.stderr)
-
-            # If still no container, use body for truly unknown domains
-            if not content_container:
-                 print(f"Unknown domain '{domain}'. Extracting from body.", file=sys.stderr)
-                 content_container = soup.body
-
+        # Always extract the full <body> content
+        content_container = soup.body
         if not content_container:
-             print("Could not find a suitable content container (body or specific). Unable to extract text.", file=sys.stderr)
-             return ""
+            print("Could not find <body> tag in HTML.", file=sys.stderr)
+            return ""
 
-        # --- Noise Removal ---
-        # More aggressive removal for specific containers, less for generic body
-        if specific_selectors_tried and content_container != soup.body:
-             # Assume the specific container is mostly article, remove more aggressively
-            noise_selectors = [
-                'script', 'style', 'header', 'footer', 'nav', 'aside',
-                '.ad', '.ads', '.advertisement', '.sidebar', '.related-posts',
-                '.comments', '.comment-section', '.footer', '.header', '.nav',
-                '.menu', '.meta', '.metadata', '.share', '.social', '.pagination',
-                'form', 'button', '[role="navigation"]', '[role="banner"]',
-                '[role="complementary"]', '[aria-hidden="true"]',
-                '.ad-container', '.promo', '.promoted', '.related', '.newsletter'
-            ]
-            print("Applying aggressive noise removal for specific container.", file=sys.stderr)
-        else:
-            # For generic body or fallback, remove only essential clutter
-            noise_selectors = ['script', 'style', 'header', 'footer', 'nav', 'aside']
-            print("Applying basic noise removal for body/fallback.", file=sys.stderr)
-
+        # Essential noise removal
+        noise_selectors = ['script', 'style', 'header', 'footer', 'nav', 'aside', 'form', 'button', 'input', 'select', 'textarea', 'label', 'iframe', 'figure', 'figcaption']
         for noise_selector in noise_selectors:
             try:
                 for element in content_container.select(noise_selector):
-                     if element: # Check if element exists before decomposing
-                         element.decompose()
+                    if element:
+                        element.decompose()
             except Exception as noise_e:
-                 # Catch potential errors during noise removal (e.g., invalid selector)
-                 print(f"Warning: Error removing noise with selector '{noise_selector}': {noise_e}", file=sys.stderr)
+                print(f"Warning: Error removing noise with selector '{noise_selector}': {noise_e}", file=sys.stderr)
 
-
-        # --- Final Text Extraction ---
         text_parts = [t.strip() for t in content_container.stripped_strings]
-        text = ' '.join(filter(None, text_parts)) # Join non-empty strings
-
+        text = ' '.join(filter(None, text_parts))
         print("Text extracted.", file=sys.stderr)
+        
+        # Check if content is too short for non-search.app URLs
+        if not text:
+            print("No text content extracted.", file=sys.stderr)
+            return ""
+            
+        # For search.app URLs, accept shorter content
+        original_domain = urlparse(url).netloc.lower()
+        min_length = 30 if 'search.app' in original_domain else 100
+        
+        if len(text) < min_length and 'search.app' not in original_domain:
+            print(f"Extracted content too short (< {min_length} characters).", file=sys.stderr)
+            return ""
+            
         return text
 
     except Exception as e:

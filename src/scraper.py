@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 import time # Added for time tracking
 import random
 from playwright_stealth import stealth_async
+from markdownify import markdownify as md
 
 # Try different import approaches to handle various contexts
 try:
@@ -90,25 +91,12 @@ async def apply_rate_limiting(url: str):
         # Update the last access time for this domain
         _domain_access_times[domain] = current_time
 
-async def extract_text_from_url(url: str) -> dict:
-    """Fetches and extracts primary text content from a URL using Playwright.
-
-    Args:
-        url: The URL to scrape.
-
-    Returns:
-        A dictionary containing:
-            - extracted_text: The extracted text.
-            - status: The outcome status string.
-            - error_message: Description of the error if any.
-            - final_url: The URL after potential redirects.
-    """
-    result = {
-        "extracted_text": "",
-        "status": "error_unknown",
-        "error_message": None,
-        "final_url": url, # Start with the input URL
-    }
+async def extract_text_from_url(url: str, 
+                               custom_elements_to_remove: list = None, 
+                               custom_timeout: int = None) -> str:
+    """Fetches and extracts primary text content from a URL using Playwright and returns formatted output."""
+    # Use custom timeout if provided, otherwise use the default
+    timeout_seconds = custom_timeout if custom_timeout is not None else TIMEOUT_SECONDS
 
     try:
         async with async_playwright() as p:
@@ -134,8 +122,8 @@ async def extract_text_from_url(url: str) -> dict:
                 "Object.defineProperty(navigator, 'plugins', {get: () => [1,2,3,4,5]});"
             )
             # Set navigation timeout
-            page.set_default_navigation_timeout(TIMEOUT_SECONDS * 1000)
-            page.set_default_timeout(TIMEOUT_SECONDS * 1000)
+            page.set_default_navigation_timeout(timeout_seconds * 1000)
+            page.set_default_timeout(timeout_seconds * 1000)
 
             try:
                 # --- Apply Rate Limiting BEFORE navigation ---
@@ -143,16 +131,13 @@ async def extract_text_from_url(url: str) -> dict:
                 
                 logger.info(f"Navigating to URL: {url}")
                 response = await page.goto(url, wait_until="domcontentloaded")
-                result["final_url"] = page.url # Update with the final URL after redirects
 
                 # CRITICAL: Check response status *immediately* after navigation
                 if response is None:
                     # This case might happen if navigation itself fails critically
                     logger.error(f"Playwright returned None response for {url}")
-                    result["status"] = "error_fetching"
-                    result["error_message"] = "Navigation failed, no response received."
                     await browser.close()
-                    return result
+                    return "[ERROR] Navigation failed, no response received."
                 
                 # Also check for common 404 page indicators even if status is 200 OK
                 page_title = await page.title()
@@ -175,16 +160,13 @@ async def extract_text_from_url(url: str) -> dict:
                 
                 if is_likely_404:
                     status_code = response.status
-                    logger.warning(f"HTTP error or 404 content detected for {url}. Status: {status_code} at {result['final_url']}")
-                    result["status"] = "error_fetching"
-                    result["error_message"] = f"HTTP status code: {status_code} or page indicates 'Not Found'"
-                    # Don't try to parse content from an error page
+                    logger.warning(f"HTTP error or 404 content detected for {url}. Status: {status_code} at {page.url}")
                     await browser.close()
-                    return result
+                    return f"[ERROR] HTTP status code: {status_code} or page indicates 'Not Found'"
 
                 # For some sites, the initial load doesn't have full content, so we need to wait
                 # Use smarter waiting strategy instead of fixed sleep
-                logger.info(f"Waiting for content to stabilize on {result['final_url']}")
+                logger.info(f"Waiting for content to stabilize on {page.url}")
 
                 # First wait for network to become idle - most JS-based content will trigger network requests
                 try:
@@ -194,7 +176,7 @@ async def extract_text_from_url(url: str) -> dict:
                     logger.warning(f"Network didn't become fully idle after {TIMEOUT_SECONDS/2}s, continuing anyway")
 
                 # Parse the domain for domain-specific waiting strategies
-                domain = urlparse(result["final_url"]).netloc.lower()
+                domain = urlparse(page.url).netloc.lower()
                 content_found = False
 
                 # Domain-specific content selectors to wait for
@@ -242,7 +224,7 @@ async def extract_text_from_url(url: str) -> dict:
                     logger.info("No specific content containers found, allowing short grace period")
                     await asyncio.sleep(1)
 
-                logger.info(f"Extracting content from: {result['final_url']}")
+                logger.info(f"Extracting content from: {page.url}")
                 html_content = await page.content()
 
                 # --- Cloudflare Challenge Detection ---
@@ -256,139 +238,105 @@ async def extract_text_from_url(url: str) -> dict:
                     r'Why do I have to complete a CAPTCHA?'
                 ]
                 if any(re.search(pattern, html_content, re.IGNORECASE) for pattern in cloudflare_patterns):
-                    logger.warning(f"Cloudflare challenge detected for {result['final_url']}")
-                    result["status"] = "error_cloudflare"
-                    result["error_message"] = "Cloudflare challenge or anti-bot screen detected. Content extraction blocked."
+                    logger.warning(f"Cloudflare challenge detected for {page.url}")
                     await browser.close()
-                    return result
+                    return "Cloudflare challenge or anti-bot screen detected. Content extraction blocked."
 
                 # Parse the domain to use domain-specific extraction strategies
-                domain = urlparse(result["final_url"]).netloc.lower()
+                domain = urlparse(page.url).netloc.lower()
                 
                 # --- Text Extraction Logic --- 
                 soup = BeautifulSoup(html_content, 'html.parser')
 
-                # Remove script and style elements
-                # Added more common non-content tags
-                for script_or_style in soup(['script', 'style', 'nav', 'footer', 'aside', 'header', 'form', 'button', 'input', 'select', 'textarea', 'label', 'iframe', 'figure', 'figcaption']):
-                    script_or_style.decompose()
+                # Define default elements to remove
+                default_elements_to_remove = ['script', 'style', 'nav', 'footer', 'aside', 'header', 
+                                           'form', 'button', 'input', 'select', 'textarea', 
+                                           'label', 'iframe', 'figure', 'figcaption']
                 
-                # Domain-specific extraction strategies
-                target_element = None
+                # Add custom elements to remove if provided
+                elements_to_remove = default_elements_to_remove
+                if custom_elements_to_remove:
+                    elements_to_remove.extend(custom_elements_to_remove)
                 
-                # Handle dev.to and forem.com (which dev.to redirects to) domains
-                if 'dev.to' in domain or 'forem.com' in domain:
-                    logger.info(f"Using specialized extraction for dev.to/forem.com")
-                    
-                    # First look for the article tag with .crayons-article class
-                    target_element = soup.find('article', class_='crayons-article')
-                    
-                    # If not found, look for the main content div with id=article-body
-                    if not target_element:
-                        target_element = soup.find('div', id='article-body')
-                    
-                    # Sometimes the content is in div.article-body
-                    if not target_element:
-                        target_element = soup.find('div', class_='article-body')
-                    
-                    # Also try finding the main section with article role
-                    if not target_element:
-                        target_element = soup.find('section', attrs={'role': 'main'})
-                    
-                    # Try to include the title for dev.to articles
-                    title_element = soup.find('h1')
-                    title_text = title_element.get_text(strip=True) if title_element else ""
-                    
-                    if target_element:
-                        # Get text with the title included
-                        text = title_text + "\n\n" + target_element.get_text(separator='\n', strip=True)
-                        text = re.sub(r'\n\s*\n', '\n\n', text).strip()
-                        
-                        # dev.to often has short content that is still valid, so use a lower threshold
-                        if text and len(text) > 30:  # Even lower threshold for dev.to/forem.com
-                            result["extracted_text"] = text
-                            result["status"] = "success"
-                            await browser.close()
-                            return result
-                
-                # General extraction if domain-specific logic didn't succeed
-                if not target_element:
-                    # Attempt to find common main content containers
-                    main_content = soup.find('article') or soup.find('main') or soup.find(role='main')
-                    # Fallback: check for common content divs if no semantic tag found
-                    if not main_content:
-                        common_divs = soup.find_all('div', class_=lambda x: x and ('content' in x or 'post' in x or 'entry' in x or 'article' in x))
-                        if common_divs:
-                             # Find the largest div among common ones, assuming it's the main content
-                             main_content = max(common_divs, key=lambda tag: len(tag.get_text(strip=True)))
+                # Remove script and style elements and other non-content tags
+                for element in soup(elements_to_remove):
+                    element.decompose()
 
-                    target_element = main_content if main_content else soup.body
-                
+                # Always extract the full <body> content
+                target_element = soup.body
                 if not target_element:
-                    logger.warning(f"Could not find body tag for {result['final_url']}")
-                    result["status"] = "error_parsing"
-                    result["error_message"] = "Could not find body tag in HTML."
+                    logger.warning(f"Could not find body tag for {page.url}")
                     await browser.close()
-                    return result
-                    
-                # Get text and clean up whitespace
-                text = target_element.get_text(separator='\n', strip=True)
-                text = re.sub(r'\n\s*\n', '\n\n', text).strip() # Consolidate multiple newlines
+                    return "[ERROR] Could not find body tag in HTML."
 
-                # Add a simple length check to avoid returning just boilerplate/empty strings
-                if not text or len(text) < 100: # Arbitrary threshold, adjust as needed
-                    logger.warning(f"No significant text content extracted (length < 100) at {result['final_url']}")
-                    # Fallback: try extracting all visible text from <body> if not already done
-                    if target_element != soup.body and soup.body:
-                        body_text = soup.body.get_text(separator='\n', strip=True)
-                        body_text = re.sub(r'\n\s*\n', '\n\n', body_text).strip()
-                        if body_text and len(body_text) >= 30:
-                            logger.info(f"Fallback: using <body> text for {result['final_url']}")
-                            result["extracted_text"] = body_text
-                            result["status"] = "success"
-                            await browser.close()
-                            return result
-                    result["status"] = "error_parsing"
-                    result["error_message"] = "No significant text content extracted (too short)."
+                text = target_element.get_text(separator='\n', strip=True)
+                text = re.sub(r'\n\s*\n', '\n\n', text).strip()
+
+                # Extract the page title
+                page_title = soup.title.string.strip() if soup.title and soup.title.string else ""
+
+                # Markdownify the body content
+                markdown_content = md(str(target_element))
+
+                # Check if the original URL is from search.app (which redirects to other content)
+                original_domain = urlparse(url).netloc.lower()
+                min_content_length = 30 if 'search.app' in original_domain else 100
+
+                # --- NEW LOGIC: Check min length BEFORE truncation ---
+                if not text or len(text) < min_content_length:
+                    logger.warning(f"No significant text content extracted (length < {min_content_length}) at {page.url}")
+                    await browser.close()
+                    return f"[ERROR] No significant text content extracted (too short, less than {min_content_length} characters)."
                 else:
-                    logger.info(f"Successfully extracted text from {result['final_url']}")
-                    result["extracted_text"] = text
-                    result["status"] = "success"
+                    # Truncate to max_length if specified in kwargs or context (MCP/stdio)
+                    max_length = None
+                    import inspect
+                    frame = inspect.currentframe()
+                    while frame:
+                        if 'max_length' in frame.f_locals:
+                            max_length = frame.f_locals['max_length']
+                            break
+                        frame = frame.f_back
+                    if max_length is not None:
+                        text = text[:max_length]
+                        markdown_content = markdown_content[:max_length]
+                    logger.info(f"Successfully extracted text from {page.url}")
+                    await browser.close()
+                    return (
+                        f"Title: {page_title}\n\n"
+                        f"URL Source: {page.url}\n\n"
+                        f"Markdown Content:\n"
+                        f"{markdown_content}"
+                    )
 
             except PlaywrightTimeoutError:
                 logger.error(f"Timeout error navigating to/loading {url}")
-                result["status"] = "error_timeout"
-                result["error_message"] = f"Page load timed out after {TIMEOUT_SECONDS} seconds."
+                await browser.close()
+                return f"[ERROR] Page load timed out after {timeout_seconds} seconds."
             except PlaywrightError as e:
                  # Handle potential navigation errors more specifically
                 if "net::ERR_NAME_NOT_RESOLVED" in str(e) or "net::ERR_CONNECTION_REFUSED" in str(e):
                      logger.error(f"Navigation error for {url}: {e}")
-                     result["status"] = "error_fetching"
-                     result["error_message"] = f"Could not resolve or connect to host: {url}"
+                     await browser.close()
+                     return f"[ERROR] Could not resolve or connect to host: {url}"
                 elif "Target closed" in str(e):
                     logger.warning(f"Browser tab closed unexpectedly for {url}: {e}")
-                    result["status"] = "error_fetching"
-                    result["error_message"] = "Browser tab closed unexpectedly during operation."
+                    await browser.close()
+                    return "Browser tab closed unexpectedly during operation."
                 else:
                     logger.error(f"Playwright error accessing {url}: {e}")
-                    result["status"] = "error_fetching"
-                    result["error_message"] = f"Browser/Navigation error: {str(e)}"
+                    await browser.close()
+                    return f"[ERROR] Browser/Navigation error: {str(e)}"
             except Exception as e:
                 logger.exception(f"Unexpected error during scraping of {url}: {e}") # Log full traceback for unexpected errors
-                result["status"] = "error_parsing" # Assume parsing issue if not caught above
-                result["error_message"] = f"An unexpected error occurred: {str(e)}"
-            finally:
-                # Ensure browser is closed even if context/page creation failed
-                if 'browser' in locals() and browser.is_connected():
-                    await browser.close()
+                await browser.close()
+                return f"[ERROR] An unexpected error occurred: {str(e)}"
 
     except ImportError:
          logger.error("Playwright is not installed. Please run 'pip install playwright && playwright install'")
-         result["status"] = "error_unknown"
-         result["error_message"] = "Playwright installation missing."
+         return "[ERROR] Playwright installation missing."
     except Exception as e:
         logger.exception(f"General error setting up Playwright or during execution for {url}: {e}")
-        result["status"] = "error_unknown"
-        result["error_message"] = f"An unexpected error occurred: {str(e)}"
+        return f"[ERROR] An unexpected error occurred: {str(e)}"
 
-    return result 
+    return "[ERROR] Unknown error occurred." 
