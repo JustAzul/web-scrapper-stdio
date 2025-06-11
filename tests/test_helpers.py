@@ -1,6 +1,4 @@
-import re
 from urllib.parse import urlparse
-import feedparser
 
 
 def discover_rss_feeds(domain_url: str) -> list[str]:
