@@ -5,11 +5,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: web-scrapper-stdio-tester
+    container_name: web-scrapper-tester
     environment:
       - PYTEST_ADDOPTS=--disable-warnings
       - PYTHONUNBUFFERED=1
-      - MCP_SERVER_PORT=0
     volumes:
       - ./tests:/app/tests
       - ./src:/app/src

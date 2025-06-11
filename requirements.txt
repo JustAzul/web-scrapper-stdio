@@ -1,11 +1,8 @@
-selenium
 beautifulsoup4
-webdriver-manager
 playwright
 requests
 pytest
 pytest-cov
-feedparser
 pytest-asyncio
 markdownify
 playwright-stealth

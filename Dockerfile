@@ -7,6 +7,7 @@ WORKDIR /app
 # Set environment variables to prevent Python from buffering stdout/stderr
 ENV PYTHONUNBUFFERED 1
 ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONPATH=/app
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -31,10 +32,6 @@ RUN playwright install --with-deps chromium
 
 # Copy source code
 COPY ./src /app/src
-
-# Set the default port (optional)
-ARG DEFAULT_PORT=9001
-ENV PORT $DEFAULT_PORT
 
 # Run the script when the container starts
 CMD ["python", "src/mcp_server.py"] 

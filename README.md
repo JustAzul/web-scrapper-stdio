@@ -2,18 +2,30 @@
 
 ## Usage (Stdin/Stdout)
 
-Run the web scraper as a Docker container that reads JSON lines from stdin and outputs results as JSON lines to stdout:
+Run the web scraper as a Docker container that reads JSON lines from stdin and outputs results as formatted strings (Markdown with metadata):
 
 ```
 echo '{"url": "https://example.com"}' | docker run -i --rm ghcr.io/justazul/web-scrapper-stdio:latest
 ```
 
 - Each input line must be a JSON object with a `url` field.
-- The output is a JSON object per line, with:
-  - `extracted_text` (Markdown)
-  - `status` ("success", "error_fetching", etc.)
-  - `error_message` (string or null)
-  - `final_url` (string)
+- The output is a formatted string per line, with:
+  - Title
+  - URL Source
+  - Markdown Content
+  - Errors are reported as strings starting with `[ERROR] ...`
+
+**Example Output:**
+```
+Title: Example Domain
+
+URL Source: https://example.com/
+
+Markdown Content:
+# Example Domain
+
+This domain is for use in illustrative examples in documents...
+```
 
 ## Usage (CLI Tool)
 
@@ -27,7 +39,7 @@ docker run -i --rm ghcr.io/justazul/web-scrapper-stdio:latest python src/cli.py 
 docker run -i --rm ghcr.io/justazul/web-scrapper-stdio:latest python src/cli.py https://example.com https://wikipedia.org
 
 # Save output to a file
-docker run -i --rm -v $(pwd):/app/output ghcr.io/justazul/web-scrapper-stdio:latest python src/cli.py https://example.com -o /app/output/results.json -p
+docker run -i --rm -v $(pwd):/app/output ghcr.io/justazul/web-scrapper-stdio:latest python src/cli.py https://example.com -o /app/output/results.txt -p
 
 # Custom timeout and element removal
 docker run -i --rm ghcr.io/justazul/web-scrapper-stdio:latest python src/cli.py https://example.com -t 60 -r div.ads section.comments
@@ -35,11 +47,11 @@ docker run -i --rm ghcr.io/justazul/web-scrapper-stdio:latest python src/cli.py 
 
 CLI options:
 - `urls`: One or more URLs to scrape (required)
-- `-o, --output`: Output file path for results (JSON format)
-- `-p, --pretty`: Pretty print JSON output
+- `-o, --output`: Output file path for results (plain text format)
+- `-p, --pretty`: Pretty print output (adds indentation/spacing)
 - `-v, --verbose`: Enable verbose logging
-- `-t, --timeout`: Custom timeout in seconds
-- `-r, --remove`: Additional HTML elements to remove (e.g., 'div.ads' 'section.comments')
+- `-t, --timeout`: Custom timeout in seconds (maps to `custom_timeout`)
+- `-r, --remove`: Additional HTML elements to remove (e.g., 'div.ads' 'section.comments', maps to `custom_elements_to_remove`)
 
 ## Usage (MCP Server)
 
@@ -53,20 +65,23 @@ This web scraper can also be used as an MCP (Model Context Protocol) tool, allow
 - `timeout_seconds` (integer, optional): Timeout in seconds for the page load (default: 30)
 - `user_agent` (string, optional): Custom User-Agent string
 - `wait_for_network_idle` (boolean, optional): Whether to wait for network activity to settle (default: true)
+- `custom_elements_to_remove` (list, optional): Additional HTML elements to remove
 
 **Returns:**
-- Markdown formatted content extracted from the webpage
+- Markdown formatted content extracted from the webpage, as a string (see example above)
+- Errors are reported as strings starting with `[ERROR] ...`
 
 ### Example:
 
-```json
-{
-  "name": "scrape_web",
-  "arguments": {
-    "url": "https://example.com",
-    "max_length": 10000
-  }
-}
+```
+Title: Example Domain
+
+URL Source: https://example.com/
+
+Markdown Content:
+# Example Domain
+
+This domain is for use in illustrative examples in documents...
 ```
 
 ### Prompt Name: scrape
@@ -75,7 +90,7 @@ This web scraper can also be used as an MCP (Model Context Protocol) tool, allow
 - `url` (string, required): The URL to scrape
 
 **Returns:**
-- Markdown formatted content extracted from the webpage
+- Markdown formatted content extracted from the webpage, as a string
 
 **Note:**
 - Output is always Markdown for easy downstream use.
@@ -83,7 +98,7 @@ This web scraper can also be used as an MCP (Model Context Protocol) tool, allow
 - No REST API or MCP server is included; this is a pure stdio tool.
 - All domains with available RSS feeds are now included in the test suite (fortune.com, techcrunch.com, wired.com, engadget.com, medium.com, dev.to, tomsguide.com, xda-developers.com, dmnews.com).
 - Test cases use domain URLs for clear output.
-- The scraper always extracts the full <body> content of web pages, applying only essential noise removal (removing script, style, nav, footer, aside, header, and similar non-content tags). Domain-specific selectors are no longer used. The scraper detects and handles Cloudflare challenge screens, returning a specific error status.
+- The scraper always extracts the full <body> content of web pages, applying only essential noise removal (removing script, style, nav, footer, aside, header, and similar non-content tags). Domain-specific selectors are no longer used. The scraper detects and handles Cloudflare challenge screens, returning a specific error string.
 
 ---
 
@@ -117,7 +132,7 @@ echo '{"url": "https://example.com"}' | python src/stdio_server.py
 python src/mcp_server.py
 
 # CLI version
-python src/cli.py https://example.com -o results.json -p
+python src/cli.py https://example.com -o results.txt -p
 ```
 
 ## Example: Run in Docker
@@ -130,18 +145,22 @@ echo '{"url": "https://example.com"}' | docker run -i --rm ghcr.io/justazul/web-
 ## Output Example
 
 ```
-{"extracted_text": "Example Domain\nThis domain is for use in illustrative examples in documents...", "status": "success", "error_message": null, "final_url": "https://example.com/"}
+Title: Example Domain
+
+URL Source: https://example.com/
+
+Markdown Content:
+# Example Domain
+
+This domain is for use in illustrative examples in documents...
 ```
 
 ## Testing
 - Use the above commands to verify extraction and Markdown output.
-- The tool is suitable for integration in any pipeline that can provide JSON lines to stdin and read JSON lines from stdout.
+- The tool is suitable for integration in any pipeline that can provide JSON lines to stdin and read formatted string output.
 - MCP-specific tests are included in the test suite.
 - Core scraping logic can be tested in isolation using the enhanced test suite:
 ```bash
 # Run all tests
 docker compose up --build --abort-on-container-exit test
-
-# Run specific tests
-docker compose run --rm test pytest -v tests/test_scraper.py
 ```
