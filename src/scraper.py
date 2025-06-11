@@ -1,36 +1,25 @@
 import asyncio
 from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeoutError, Error as PlaywrightError
 from bs4 import BeautifulSoup
-import logging
 import re
 from urllib.parse import urlparse
 import time # Added for time tracking
 import random
 from playwright_stealth import stealth_async
 from markdownify import markdownify as md
+from src.config import (
+    DEFAULT_TIMEOUT_SECONDS, DEFAULT_MIN_CONTENT_LENGTH, DEFAULT_MIN_CONTENT_LENGTH_SEARCH_APP,
+    DEFAULT_MIN_SECONDS_BETWEEN_REQUESTS, DEFAULT_SELECTOR_WAIT_DOMAIN_MS, DEFAULT_SELECTOR_WAIT_GENERIC_MS, DEFAULT_GRACE_PERIOD_SECONDS,
+    DEBUG_LOGS_ENABLED
+)
+from src.logger import Logger
 
-# Try different import approaches to handle various contexts
-try:
-    # When imported as part of the src package
-    from .config import TIMEOUT_SECONDS, USER_AGENT, VIEWPORT_WIDTH, VIEWPORT_HEIGHT
-except ImportError:
-    try:
-        # When using absolute imports
-        from src.config import TIMEOUT_SECONDS, USER_AGENT, VIEWPORT_WIDTH, VIEWPORT_HEIGHT
-    except ImportError:
-        # When run directly or in special contexts
-        import sys
-        import os
-        # Add parent directory to path
-        sys.path.insert(0, os.path.abspath(os.path.dirname(os.path.dirname(__file__))))
-        from src.config import TIMEOUT_SECONDS, USER_AGENT, VIEWPORT_WIDTH, VIEWPORT_HEIGHT
-
-logger = logging.getLogger(__name__)
+logger = Logger(__name__)
 
 # --- Rate Limiting Globals ---
 _domain_access_times = {}
 _domain_lock = asyncio.Lock()
-MIN_SECONDS_BETWEEN_REQUESTS = 2 # Be polite: Wait at least 2 seconds between requests to the same domain
+MIN_SECONDS_BETWEEN_REQUESTS = DEFAULT_MIN_SECONDS_BETWEEN_REQUESTS
 
 # --- User Agent and Viewport Pools ---
 USER_AGENTS = [
@@ -72,8 +61,8 @@ async def apply_rate_limiting(url: str):
     """Checks and applies delay if hitting the same domain too frequently."""
     domain = get_domain_from_url(url)
     if not domain:
-        logger.debug(f"No valid domain for rate limiting: {url}")
-        return # Cannot rate limit without a domain
+        logger.warning(f"No valid domain for rate limiting: {url}")
+        return
 
     async with _domain_lock:
         current_time = time.time()
@@ -83,20 +72,17 @@ async def apply_rate_limiting(url: str):
             time_since_last = current_time - last_access_time
             if time_since_last < MIN_SECONDS_BETWEEN_REQUESTS:
                 sleep_duration = MIN_SECONDS_BETWEEN_REQUESTS - time_since_last
-                logger.info(f"Rate limiting {domain}: Sleeping for {sleep_duration:.2f}s")
+                logger.warning(f"Rate limiting {domain}: Sleeping for {sleep_duration:.2f}s")
                 await asyncio.sleep(sleep_duration)
-                # Update current_time after sleeping
                 current_time = time.time()
 
-        # Update the last access time for this domain
         _domain_access_times[domain] = current_time
 
 async def extract_text_from_url(url: str, 
                                custom_elements_to_remove: list = None, 
                                custom_timeout: int = None) -> str:
     """Fetches and extracts primary text content from a URL using Playwright and returns formatted output."""
-    # Use custom timeout if provided, otherwise use the default
-    timeout_seconds = custom_timeout if custom_timeout is not None else TIMEOUT_SECONDS
+    timeout_seconds = custom_timeout if custom_timeout is not None else DEFAULT_TIMEOUT_SECONDS
 
     try:
         async with async_playwright() as p:
@@ -121,7 +107,6 @@ async def extract_text_from_url(url: str,
                 "Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en']});"
                 "Object.defineProperty(navigator, 'plugins', {get: () => [1,2,3,4,5]});"
             )
-            # Set navigation timeout
             page.set_default_navigation_timeout(timeout_seconds * 1000)
             page.set_default_timeout(timeout_seconds * 1000)
 
@@ -129,19 +114,19 @@ async def extract_text_from_url(url: str,
                 # --- Apply Rate Limiting BEFORE navigation ---
                 await apply_rate_limiting(url)
                 
-                logger.info(f"Navigating to URL: {url}")
+                if DEBUG_LOGS_ENABLED:
+                    logger.debug(f"Navigating to URL: {url}")
                 response = await page.goto(url, wait_until="domcontentloaded")
 
                 # CRITICAL: Check response status *immediately* after navigation
                 if response is None:
-                    # This case might happen if navigation itself fails critically
-                    logger.error(f"Playwright returned None response for {url}")
+                    logger.debug(f"Playwright returned None response for {url}")
                     await browser.close()
                     return "[ERROR] Navigation failed, no response received."
                 
                 # Also check for common 404 page indicators even if status is 200 OK
                 page_title = await page.title()
-                page_content_preview = await page.content() # Get initial content quickly
+                page_content_preview = await page.content()
                 not_found_patterns = [
                     r"404 Not Found", r"Page Not Found", r"couldn't find this page",
                     r"can't find page", r"doesn't exist", r"Oops! Nothing was found"
@@ -150,10 +135,9 @@ async def extract_text_from_url(url: str,
                 if not response.ok:
                     is_likely_404 = True
                 else:
-                    # Check title and body for patterns if response was OK
                     for pattern in not_found_patterns:
                         if re.search(pattern, page_title, re.IGNORECASE) or \
-                           re.search(pattern, page_content_preview[:2000], re.IGNORECASE): # Check first 2k chars
+                           re.search(pattern, page_content_preview[:2000], re.IGNORECASE):
                             logger.warning(f"Detected likely 404 content pattern ('{pattern}') despite 200 OK for {url}")
                             is_likely_404 = True
                             break
@@ -164,18 +148,17 @@ async def extract_text_from_url(url: str,
                     await browser.close()
                     return f"[ERROR] HTTP status code: {status_code} or page indicates 'Not Found'"
 
-                # For some sites, the initial load doesn't have full content, so we need to wait
-                # Use smarter waiting strategy instead of fixed sleep
-                logger.info(f"Waiting for content to stabilize on {page.url}")
+                if DEBUG_LOGS_ENABLED:
+                    logger.debug(f"Waiting for content to stabilize on {page.url}")
 
-                # First wait for network to become idle - most JS-based content will trigger network requests
                 try:
-                    await page.wait_for_load_state("networkidle", timeout=TIMEOUT_SECONDS * 1000 / 2)
-                    logger.info("Network became idle")
+                    await page.wait_for_load_state("networkidle", timeout=timeout_seconds * 1000 / 2)
+                    if DEBUG_LOGS_ENABLED:
+                        logger.debug("Network became idle")
                 except PlaywrightTimeoutError:
-                    logger.warning(f"Network didn't become fully idle after {TIMEOUT_SECONDS/2}s, continuing anyway")
+                    if DEBUG_LOGS_ENABLED:
+                        logger.debug(f"Network didn't become fully idle after {timeout_seconds/2}s, continuing anyway")
 
-                # Parse the domain for domain-specific waiting strategies
                 domain = urlparse(page.url).netloc.lower()
                 content_found = False
 
@@ -190,41 +173,43 @@ async def extract_text_from_url(url: str,
 
                 # First try domain-specific waiting if available
                 if any(d in domain for d in domain_specific_selectors.keys()):
-                    # Find matching domain
                     matching_domain = next((d for d in domain_specific_selectors.keys() if d in domain), None)
                     if matching_domain:
-                        logger.info(f"Using domain-specific selectors for {matching_domain}")
+                        if DEBUG_LOGS_ENABLED:
+                            logger.debug(f"Using domain-specific selectors for {matching_domain}")
                         for selector in domain_specific_selectors[matching_domain]:
                             try:
-                                await page.wait_for_selector(selector, timeout=3000)
-                                logger.info(f"Found domain-specific content container: {selector}")
+                                await page.wait_for_selector(selector, timeout=DEFAULT_SELECTOR_WAIT_DOMAIN_MS)
+                                if DEBUG_LOGS_ENABLED:
+                                    logger.debug(f"Found domain-specific content container: {selector}")
                                 content_found = True
                                 break
                             except PlaywrightTimeoutError:
                                 continue
 
-                # If domain-specific waiting didn't find content, try generic selectors
                 if not content_found:
                     # General content selectors
                     generic_selectors = ["article", "main", "[role='main']", ".post-content", ".article-content", "#article-body", ".content"]
-                    logger.info("Trying generic content selectors")
+                    if DEBUG_LOGS_ENABLED:
+                        logger.debug("Trying generic content selectors")
                     
                     for selector in generic_selectors:
                         try:
-                            # Short timeout for checking if selectors exist to avoid long waits
-                            await page.wait_for_selector(selector, timeout=2000)
-                            logger.info(f"Found content container: {selector}")
+                            await page.wait_for_selector(selector, timeout=DEFAULT_SELECTOR_WAIT_GENERIC_MS)
+                            if DEBUG_LOGS_ENABLED:
+                                logger.debug(f"Found content container: {selector}")
                             content_found = True
                             break
                         except PlaywrightTimeoutError:
                             continue
 
-                # If no content found after checking selectors, do one final short wait to allow any remaining JS to run
                 if not content_found:
-                    logger.info("No specific content containers found, allowing short grace period")
-                    await asyncio.sleep(1)
+                    if DEBUG_LOGS_ENABLED:
+                        logger.debug("No specific content containers found, allowing short grace period")
+                    await asyncio.sleep(DEFAULT_GRACE_PERIOD_SECONDS)
 
-                logger.info(f"Extracting content from: {page.url}")
+                if DEBUG_LOGS_ENABLED:
+                    logger.debug(f"Extracting content from: {page.url}")
                 html_content = await page.content()
 
                 # --- Cloudflare Challenge Detection ---
@@ -242,7 +227,6 @@ async def extract_text_from_url(url: str,
                     await browser.close()
                     return "Cloudflare challenge or anti-bot screen detected. Content extraction blocked."
 
-                # Parse the domain to use domain-specific extraction strategies
                 domain = urlparse(page.url).netloc.lower()
                 
                 # --- Text Extraction Logic --- 
@@ -272,15 +256,12 @@ async def extract_text_from_url(url: str,
                 text = target_element.get_text(separator='\n', strip=True)
                 text = re.sub(r'\n\s*\n', '\n\n', text).strip()
 
-                # Extract the page title
                 page_title = soup.title.string.strip() if soup.title and soup.title.string else ""
 
-                # Markdownify the body content
                 markdown_content = md(str(target_element))
 
-                # Check if the original URL is from search.app (which redirects to other content)
                 original_domain = urlparse(url).netloc.lower()
-                min_content_length = 30 if 'search.app' in original_domain else 100
+                min_content_length = DEFAULT_MIN_CONTENT_LENGTH_SEARCH_APP if 'search.app' in original_domain else DEFAULT_MIN_CONTENT_LENGTH
 
                 # --- NEW LOGIC: Check min length BEFORE truncation ---
                 if not text or len(text) < min_content_length:
@@ -300,7 +281,8 @@ async def extract_text_from_url(url: str,
                     if max_length is not None:
                         text = text[:max_length]
                         markdown_content = markdown_content[:max_length]
-                    logger.info(f"Successfully extracted text from {page.url}")
+                    if DEBUG_LOGS_ENABLED:
+                        logger.debug(f"Successfully extracted text from {page.url}")
                     await browser.close()
                     return (
                         f"Title: {page_title}\n\n"
@@ -310,33 +292,32 @@ async def extract_text_from_url(url: str,
                     )
 
             except PlaywrightTimeoutError:
-                logger.error(f"Timeout error navigating to/loading {url}")
+                logger.warning(f"Timeout error navigating to/loading {url}")
                 await browser.close()
                 return f"[ERROR] Page load timed out after {timeout_seconds} seconds."
             except PlaywrightError as e:
-                 # Handle potential navigation errors more specifically
                 if "net::ERR_NAME_NOT_RESOLVED" in str(e) or "net::ERR_CONNECTION_REFUSED" in str(e):
-                     logger.error(f"Navigation error for {url}: {e}")
-                     await browser.close()
-                     return f"[ERROR] Could not resolve or connect to host: {url}"
+                    logger.warning(f"Navigation error for {url}: {e}")
+                    await browser.close()
+                    return f"[ERROR] Could not resolve or connect to host: {url}"
                 elif "Target closed" in str(e):
                     logger.warning(f"Browser tab closed unexpectedly for {url}: {e}")
                     await browser.close()
                     return "Browser tab closed unexpectedly during operation."
                 else:
-                    logger.error(f"Playwright error accessing {url}: {e}")
+                    logger.warning(f"Playwright error accessing {url}: {e}")
                     await browser.close()
                     return f"[ERROR] Browser/Navigation error: {str(e)}"
             except Exception as e:
-                logger.exception(f"Unexpected error during scraping of {url}: {e}") # Log full traceback for unexpected errors
+                logger.warning(f"Unexpected error during scraping of {url}: {e}")
                 await browser.close()
                 return f"[ERROR] An unexpected error occurred: {str(e)}"
 
     except ImportError:
-         logger.error("Playwright is not installed. Please run 'pip install playwright && playwright install'")
-         return "[ERROR] Playwright installation missing."
+        logger.warning("Playwright is not installed. Please run 'pip install playwright && playwright install'")
+        return "[ERROR] Playwright installation missing."
     except Exception as e:
-        logger.exception(f"General error setting up Playwright or during execution for {url}: {e}")
+        logger.warning(f"General error setting up Playwright or during execution for {url}: {e}")
         return f"[ERROR] An unexpected error occurred: {str(e)}"
 
     return "[ERROR] Unknown error occurred." 

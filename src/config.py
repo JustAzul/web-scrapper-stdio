@@ -1,15 +1,25 @@
 import os
-
 # Default configuration values
+# Timeout for page loads and navigation (in seconds)
 DEFAULT_TIMEOUT_SECONDS = 30
-DEFAULT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"
-DEFAULT_VIEWPORT_WIDTH = 1920
-DEFAULT_VIEWPORT_HEIGHT = 1080
-DEFAULT_PORT = 9001
+# Minimum content length required for extracted text (in characters)
+DEFAULT_MIN_CONTENT_LENGTH = 100
+# Lower minimum content length for search.app domains (in characters)
+DEFAULT_MIN_CONTENT_LENGTH_SEARCH_APP = 30
+# Minimum delay between requests to the same domain (in seconds)
+DEFAULT_MIN_SECONDS_BETWEEN_REQUESTS = 2
+# Wait time for domain-specific selectors to appear (in milliseconds)
+DEFAULT_SELECTOR_WAIT_DOMAIN_MS = 3000
+# Wait time for generic selectors to appear (in milliseconds)
+DEFAULT_SELECTOR_WAIT_GENERIC_MS = 2000
+# Short grace period to allow JS to finish rendering (in seconds)
+DEFAULT_GRACE_PERIOD_SECONDS = 1
+# Timeout for test requests (in seconds)
+DEFAULT_TEST_REQUEST_TIMEOUT = 10
+# Threshold for skipping artificial delays in tests (in seconds)
+DEFAULT_TEST_NO_DELAY_THRESHOLD = 0.5
+# Maximum allowed content length for extracted text (in characters)
+DEFAULT_MAX_CONTENT_LENGTH = 5000
 
-# Load configuration from environment variables or use defaults
-TIMEOUT_SECONDS = int(os.getenv("SCRAPER_TIMEOUT_SECONDS", DEFAULT_TIMEOUT_SECONDS))
-USER_AGENT = os.getenv("SCRAPER_USER_AGENT", DEFAULT_USER_AGENT)
-VIEWPORT_WIDTH = int(os.getenv("SCRAPER_VIEWPORT_WIDTH", DEFAULT_VIEWPORT_WIDTH))
-VIEWPORT_HEIGHT = int(os.getenv("SCRAPER_VIEWPORT_HEIGHT", DEFAULT_VIEWPORT_HEIGHT))
-PORT = int(os.getenv("PORT", DEFAULT_PORT)) 
+# Debug logging toggle
+DEBUG_LOGS_ENABLED = os.getenv("DEBUG_LOGS_ENABLED", "false").lower() == "true"

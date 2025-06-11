@@ -1,6 +1,3 @@
-print('[DEBUG] mcp_server.py script started', flush=True)
-
-# Import MCP classes from the official package
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import (
@@ -12,11 +9,10 @@ from mcp.shared.exceptions import McpError
 
 import json
 import sys
-import os
 import asyncio
-from typing import Dict, List, Optional, Any
 from pydantic import BaseModel, Field
-import logging
+from src.logger import Logger
+from src.config import DEFAULT_TIMEOUT_SECONDS, DEFAULT_MAX_CONTENT_LENGTH
 import traceback
 
 # Use absolute imports instead of relative imports
@@ -29,25 +25,19 @@ except ImportError:
 
 import markdownify
 
-# Configure logging
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[logging.StreamHandler(sys.stderr)]
-)
-logger = logging.getLogger("mcp_server")
+logger = Logger(__name__)
 
 class ScrapeArgs(BaseModel):
     """Parameters for web scraping."""
     url: str = Field(description="URL to scrape")
     max_length: int = Field(
-        default=5000,
+        default=DEFAULT_MAX_CONTENT_LENGTH,
         description="Maximum number of characters to return.",
         gt=0,
         lt=1000000,
     )
     timeout_seconds: int = Field(
-        default=30,
+        default=DEFAULT_TIMEOUT_SECONDS,
         description="Timeout in seconds for the page load.",
         gt=0,
         lt=120,
@@ -62,13 +52,11 @@ class ScrapeArgs(BaseModel):
     )
 
 async def serve(custom_user_agent: str | None = None):
-    print("[DEBUG] Starting MCP web scraper server (stdio mode)", flush=True)
     logger.info("Starting MCP web scraper server (stdio mode)")
     server = Server("mcp-web-scraper")
 
     @server.list_tools()
     async def list_tools() -> list[Tool]:
-        print("[DEBUG] list_tools handler called", flush=True)
         logger.info("Listing available tools")
         return [
             Tool(
@@ -188,12 +176,11 @@ async def serve(custom_user_agent: str | None = None):
         )
 
     options = server.create_initialization_options()
-    print('[DEBUG] About to enter stdio_server context', flush=True)
+    logger.info('About to enter stdio_server context')
     async with stdio_server() as (read_stream, write_stream):
-        print('[DEBUG] Entered stdio_server context, about to run server', flush=True)
         logger.info("Starting MCP server with stdio communication")
         await server.run(read_stream, write_stream, options, raise_exceptions=True)
-        print('[DEBUG] server.run() completed', flush=True)
+        logger.info("server.run() completed")
 
 def send_response(response):
     try:
@@ -231,7 +218,7 @@ def main():
                 params = request.get("params", {})
                 name = params.get("name")
                 arguments = params.get("arguments", {})
-                logger.info(f"Tool call: {name} with arguments: {arguments}")
+                logger.debug(f"Tool call: {name} with arguments: {arguments}")
                 if name == "scrape_web":
                     url = arguments.get("url")
                     max_length = arguments.get("max_length")
@@ -246,6 +233,12 @@ def main():
                     try:
                         # Call the scraper
                         result = asyncio.run(extract_text_from_url(url))
+                        # If result is a string, wrap it in a dict
+                        if isinstance(result, str):
+                            if '[ERROR]' in result:
+                                result = {"status": "error", "extracted_text": result, "final_url": url}
+                            else:
+                                result = {"status": "success", "extracted_text": result, "final_url": url}
                         # Truncate if max_length is set
                         if result["status"] == "success" and max_length:
                             result["extracted_text"] = result["extracted_text"][:max_length]
