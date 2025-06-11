@@ -2,15 +2,18 @@ import logging
 import sys
 from src.config import DEBUG_LOGS_ENABLED
 
+
 class Logger:
     def __init__(self, name: str):
         self.logger = logging.getLogger(name)
         if not self.logger.hasHandlers():
             handler = logging.StreamHandler(sys.stderr)
-            formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s')
+            formatter = logging.Formatter(
+                '%(asctime)s - %(levelname)s - %(name)s - %(message)s')
             handler.setFormatter(formatter)
             self.logger.addHandler(handler)
-        self.logger.setLevel(logging.DEBUG if DEBUG_LOGS_ENABLED else logging.INFO)
+        self.logger.setLevel(
+            logging.DEBUG if DEBUG_LOGS_ENABLED else logging.INFO)
 
     def log(self, message):
         self.logger.info(message)
@@ -25,4 +28,4 @@ class Logger:
         self.logger.warning(message)
 
     def error(self, message):
-        self.logger.error(message) 
+        self.logger.error(message)
