@@ -27,6 +27,7 @@ import markdownify
 
 logger = Logger(__name__)
 
+
 class ScrapeArgs(BaseModel):
     """Parameters for web scraping."""
     url: str = Field(description="URL to scrape")
@@ -50,6 +51,7 @@ class ScrapeArgs(BaseModel):
         default=True,
         description="Whether to wait for network activity to settle before extracting content."
     )
+
 
 async def serve(custom_user_agent: str | None = None):
     logger.info("Starting MCP web scraper server (stdio mode)")
@@ -87,8 +89,9 @@ async def serve(custom_user_agent: str | None = None):
     async def call_tool(name, arguments: dict) -> list[TextContent]:
         logger.info(f"Call to tool '{name}' with arguments: {arguments}")
         if name != "scrape_web":
-            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Unknown tool: {name}"))
-            
+            raise McpError(ErrorData(code=INVALID_PARAMS,
+                           message=f"Unknown tool: {name}"))
+
         try:
             args = ScrapeArgs(**arguments)
         except ValueError as e:
@@ -98,30 +101,36 @@ async def serve(custom_user_agent: str | None = None):
         url = args.url
         if not url:
             logger.error("URL is required")
-            raise McpError(ErrorData(code=INVALID_PARAMS, message="URL is required"))
+            raise McpError(ErrorData(code=INVALID_PARAMS,
+                           message="URL is required"))
 
         # Call our existing scraper function
         logger.info(f"Scraping URL: {url}")
         result = await extract_text_from_url(url)
-        
+
         if result["status"] != "success":
-            logger.error(f"Failed to scrape {url}: {result['error_message'] or result['status']}")
+            logger.error(
+                f"Failed to scrape {url}: {result['error_message'] or result['status']}")
             raise McpError(ErrorData(
                 code=INTERNAL_ERROR,
                 message=f"Failed to scrape {url}: {result['error_message'] or result['status']}"
             ))
-        
+
         # Convert to Markdown if not already done
         content = result["extracted_text"]
         if content and result["status"] == "success":
-            content = markdownify.markdownify(content, heading_style=markdownify.ATX)
-        
+            content = markdownify.markdownify(
+                content, heading_style=markdownify.ATX)
+
         # Truncate if necessary
         if len(content) > args.max_length:
-            logger.info(f"Truncating content from {len(content)} to {args.max_length} characters")
-            content = content[:args.max_length] + "\n\n[Content truncated due to length]"
-        
-        logger.info(f"Successfully scraped {url}, returning {len(content)} characters")
+            logger.info(
+                f"Truncating content from {len(content)} to {args.max_length} characters")
+            content = content[:args.max_length] + \
+                "\n\n[Content truncated due to length]"
+
+        logger.info(
+            f"Successfully scraped {url}, returning {len(content)} characters")
         return [TextContent(
             type="text",
             text=f"Scraped content from {result['final_url']}:\n\n{content}"
@@ -131,18 +140,21 @@ async def serve(custom_user_agent: str | None = None):
     async def get_prompt(name: str, arguments: dict | None) -> GetPromptResult:
         logger.info(f"Get prompt '{name}' with arguments: {arguments}")
         if name != "scrape":
-            raise McpError(ErrorData(code=INVALID_PARAMS, message=f"Unknown prompt: {name}"))
-            
+            raise McpError(ErrorData(code=INVALID_PARAMS,
+                           message=f"Unknown prompt: {name}"))
+
         if not arguments or "url" not in arguments:
             logger.error("URL is required for scrape prompt")
-            raise McpError(ErrorData(code=INVALID_PARAMS, message="URL is required"))
-        
+            raise McpError(ErrorData(code=INVALID_PARAMS,
+                           message="URL is required"))
+
         url = arguments["url"]
         logger.info(f"Scraping URL for prompt: {url}")
         result = await extract_text_from_url(url)
-        
+
         if result["status"] != "success":
-            logger.error(f"Failed to scrape {url} for prompt: {result['error_message'] or result['status']}")
+            logger.error(
+                f"Failed to scrape {url} for prompt: {result['error_message'] or result['status']}")
             return GetPromptResult(
                 description=f"Failed to scrape {url}",
                 messages=[
@@ -155,13 +167,15 @@ async def serve(custom_user_agent: str | None = None):
                     )
                 ],
             )
-        
+
         # Convert to Markdown if needed
         content = result["extracted_text"]
         if content:
-            content = markdownify.markdownify(content, heading_style=markdownify.ATX)
-        
-        logger.info(f"Successfully scraped {url} for prompt, returning {len(content)} characters")
+            content = markdownify.markdownify(
+                content, heading_style=markdownify.ATX)
+
+        logger.info(
+            f"Successfully scraped {url} for prompt, returning {len(content)} characters")
         return GetPromptResult(
             description=f"Scraped content from {result['final_url']}",
             messages=[
@@ -182,6 +196,7 @@ async def serve(custom_user_agent: str | None = None):
         await server.run(read_stream, write_stream, options, raise_exceptions=True)
         logger.info("server.run() completed")
 
+
 def send_response(response):
     try:
         sys.stdout.write(json.dumps(response) + "\n")
@@ -190,6 +205,7 @@ def send_response(response):
     except Exception as e:
         logger.error(f"Failed to send response: {e}")
         logger.error(traceback.format_exc())
+
 
 def main():
     logger.info("MCP server started, waiting for requests...")
@@ -204,13 +220,15 @@ def main():
                 request = json.loads(line)
             except Exception as e:
                 logger.error(f"Failed to parse JSON: {e}")
-                send_response({"jsonrpc": "2.0", "error": {"code": -32700, "message": "Parse error"}})
+                send_response({"jsonrpc": "2.0", "error": {
+                              "code": -32700, "message": "Parse error"}})
                 continue
 
             # Handle initialize
             if request.get("method") == "initialize":
                 logger.info("Received initialize request.")
-                send_response({"jsonrpc": "2.0", "id": request.get("id"), "result": {"status": "ok"}})
+                send_response({"jsonrpc": "2.0", "id": request.get(
+                    "id"), "result": {"status": "ok"}})
                 continue
 
             # Handle tool call
@@ -236,9 +254,11 @@ def main():
                         # If result is a string, wrap it in a dict
                         if isinstance(result, str):
                             if '[ERROR]' in result:
-                                result = {"status": "error", "extracted_text": result, "final_url": url}
+                                result = {
+                                    "status": "error", "extracted_text": result, "final_url": url}
                             else:
-                                result = {"status": "success", "extracted_text": result, "final_url": url}
+                                result = {
+                                    "status": "success", "extracted_text": result, "final_url": url}
                         # Truncate if max_length is set
                         if result["status"] == "success" and max_length:
                             result["extracted_text"] = result["extracted_text"][:max_length]
@@ -279,5 +299,6 @@ def main():
                 "error": {"code": -32000, "message": f"Fatal error: {str(e)}"}
             })
 
+
 if __name__ == "__main__":
-    main() 
+    main()
