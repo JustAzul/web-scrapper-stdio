@@ -8,10 +8,6 @@ DEFAULT_MIN_CONTENT_LENGTH = 100
 DEFAULT_MIN_CONTENT_LENGTH_SEARCH_APP = 30
 # Minimum delay between requests to the same domain (in seconds)
 DEFAULT_MIN_SECONDS_BETWEEN_REQUESTS = 2
-# Wait time for domain-specific selectors to appear (in milliseconds)
-DEFAULT_SELECTOR_WAIT_DOMAIN_MS = 3000
-# Wait time for generic selectors to appear (in milliseconds)
-DEFAULT_SELECTOR_WAIT_GENERIC_MS = 2000
 # Short grace period to allow JS to finish rendering (in seconds)
 DEFAULT_GRACE_PERIOD_SECONDS = 1
 # Timeout for test requests (in seconds)
