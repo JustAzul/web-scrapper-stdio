@@ -1,6 +1,4 @@
-# Web Scraper Service (MCP Stdin/Stdout, Markdown Output)
-
-## Project Overview
+## Web Scraper Service (MCP Stdin/Stdout, Markdown Output)
 
 This project is a Python-based web scraper that extracts primary text content from web pages, outputting Markdown via a simple stdio/JSON-RPC interface. It is designed as an MCP (Model Context Protocol) server for seamless AI model interaction.
 
@@ -74,8 +72,6 @@ You can override most configuration options using environment variables:
 - `DEFAULT_GRACE_PERIOD_SECONDS`: Short grace period for JS rendering (default: 1)
 - `DEFAULT_MAX_CONTENT_LENGTH`: Maximum allowed content length for extracted text (default: 5000)
 - `DEBUG_LOGS_ENABLED`: Set to `true` to enable debug-level logs (default: `false`)
-
-`DEFAULT_MIN_CONTENT_LENGTH_SEARCH_APP` is not settable via environment variable by design.
 
 ## Error Handling & Rate Limiting
 
