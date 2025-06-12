@@ -1,4 +1,4 @@
-## Web Scrapper Service (MCP Stdin/Stdout, Markdown Output)
+## Web Scrapper Service (MCP Stdin/Stdout, Markdown Output by Default)
 
 This project is a Python-based web scrapper that extracts primary text content from web pages, outputting Markdown via a simple stdio/JSON-RPC interface. It is designed as an MCP (Model Context Protocol) server for seamless AI model interaction.
 
@@ -33,7 +33,7 @@ This web scrapper is used as an MCP (Model Context Protocol) tool, allowing it t
 - `grace_period_seconds` (float, optional): Short grace period to allow JS to finish rendering (in seconds, default: 2.0)
 
 **Returns:**
-- Markdown formatted content extracted from the webpage, as a string
+- Content extracted from the webpage in the selected format
 - Errors are reported as strings starting with `[ERROR] ...`
 
 #### Prompt: `scrape`
@@ -42,10 +42,10 @@ This web scrapper is used as an MCP (Model Context Protocol) tool, allowing it t
 - `url` (string, required): The URL to scrape
 
 **Returns:**
-- Markdown formatted content extracted from the webpage, as a string
+- Content extracted from the webpage in the selected format
 
 **Note:**
-- Output is always Markdown for easy downstream use.
+- Output format can be ``markdown`` (default), ``text`` or ``html``.
 - The scrapper does not check robots.txt and will attempt to fetch any URL provided.
 - No REST API or CLI tool is included; this is a pure MCP stdio/JSON-RPC tool.
 - The scrapper always extracts the full `<body>` content of web pages, applying only essential noise removal (removing script, style, nav, footer, aside, header, and similar non-content tags). The scrapper detects and handles Cloudflare challenge screens, returning a specific error string.

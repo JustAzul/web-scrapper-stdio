@@ -13,6 +13,7 @@ from src.config import (
 )
 
 from src.scraper import extract_text_from_url, get_domain_from_url, apply_rate_limiting
+from src.output_format_handler import OutputFormat
 from src.scraper.helpers.browser import USER_AGENTS
 
 
@@ -23,11 +24,24 @@ async def test_extract_text_from_example_com():
     assert isinstance(result, dict)
     assert result.get("title") is not None
     assert "Example Domain" in (result.get("title") or "") or "Example Domain" in (
-        result.get("markdown_content") or "")
-    assert result.get("markdown_content") is not None
+        result.get("content") or "")
+    assert result.get("content") is not None
     assert result.get("final_url") in [
         url, url + "/", "https://www.example.com", "https://www.example.com/"]
     assert not result.get("error")
+
+
+@pytest.mark.asyncio
+async def test_extract_text_output_formats():
+    url = "https://example.com"
+    result_markdown = await extract_text_from_url(url)
+    result_text = await extract_text_from_url(url, output_format=OutputFormat.TEXT)
+    result_html = await extract_text_from_url(url, output_format=OutputFormat.HTML)
+
+    assert result_markdown.get("content") is not None
+    assert result_text.get("content") is not None
+    assert result_html.get("content") is not None
+    assert "<p>" in result_html.get("content")
 
 
 @pytest.mark.asyncio
@@ -35,8 +49,8 @@ async def test_extract_text_from_example_com_with_max_length():
     url = "https://example.com"
     result = await extract_text_from_url(url, max_length=50)
     assert isinstance(result, dict)
-    assert result.get("markdown_content") is not None
-    assert len(result.get("markdown_content")) <= 50
+    assert result.get("content") is not None
+    assert len(result.get("content")) <= 50
 
 
 @pytest.mark.asyncio
@@ -46,8 +60,8 @@ async def test_extract_text_from_wikipedia():
     assert isinstance(result, dict)
     assert result.get("title") is not None
     assert "Web scraping" in (result.get("title") or "") or "Web scraping" in (
-        result.get("markdown_content") or "")
-    assert result.get("markdown_content") is not None
+        result.get("content") or "")
+    assert result.get("content") is not None
     assert result.get("final_url") == url or result.get(
         "final_url", "").startswith("https://en.wikipedia.org/wiki/")
     assert not result.get("error")
@@ -127,8 +141,8 @@ async def test_extract_real_article():
     assert isinstance(result, dict)
     assert result.get("title") is not None
     assert "Web scraping" in (result.get("title") or "") or "Web scraping" in (
-        result.get("markdown_content") or "")
-    assert result.get("markdown_content") is not None
+        result.get("content") or "")
+    assert result.get("content") is not None
     assert result.get("final_url") == url or result.get(
         "final_url", "").startswith("https://en.wikipedia.org/wiki/")
 
@@ -186,8 +200,8 @@ async def test_dynamic_article_extraction(domain_info):
         return
     assert isinstance(result, dict)
     assert result.get("title") is not None
-    assert result.get("markdown_content") is not None
-    content = result.get("markdown_content") or ""
+    assert result.get("content") is not None
+    content = result.get("content") or ""
     if 'dev.to' not in link and 'forem.com' not in link:
         assert len(
             content) >= DEFAULT_MIN_CONTENT_LENGTH, f"Extracted text too short ({len(content)} chars) for {link}"
@@ -228,13 +242,13 @@ async def test_grace_period_seconds_js_delay():
     result_long = await extract_text_from_url(test_url, grace_period_seconds=3.0)
 
     # If the page does not actually use JS to delay content, skip the test
-    if result_short.get("markdown_content") == result_long.get("markdown_content"):
+    if result_short.get("content") == result_long.get("content"):
         pytest.skip(
             "Test page does not have JS-delayed content or is not suitable for this test.")
 
     # The longer grace period should yield more content
-    assert len(result_long.get("markdown_content") or "") > len(result_short.get(
-        "markdown_content") or ""), "Longer grace period did not capture more content."
+    assert len(result_long.get("content") or "") > len(result_short.get(
+        "content") or ""), "Longer grace period did not capture more content."
 
 
 @pytest.mark.asyncio
@@ -246,5 +260,5 @@ async def test_custom_user_agent_and_no_network_idle():
         wait_for_network_idle=False,
     )
     assert isinstance(result, dict)
-    assert result.get("markdown_content") is not None
+    assert result.get("content") is not None
     assert not result.get("error")
