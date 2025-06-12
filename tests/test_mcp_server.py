@@ -6,7 +6,7 @@ from src.mcp_server import mcp_extract_text_map
 async def test_call_tool_with_string_result():
     arguments = {
         "url": "http://example.com",
-        "max_length": 5000,
+        "max_length": None,
         "timeout_seconds": 30,
         "wait_for_network_idle": True
     }
