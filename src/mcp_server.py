@@ -7,13 +7,10 @@ from mcp.types import (
 )
 from mcp.shared.exceptions import McpError
 
-import json
-import sys
 import asyncio
 from pydantic import BaseModel, Field
 from src.logger import Logger
 from src.config import DEFAULT_TIMEOUT_SECONDS, DEFAULT_MAX_CONTENT_LENGTH
-import traceback
 
 # Use absolute imports instead of relative imports
 try:
@@ -196,109 +193,5 @@ async def serve(custom_user_agent: str | None = None):
         await server.run(read_stream, write_stream, options, raise_exceptions=True)
         logger.info("server.run() completed")
 
-
-def send_response(response):
-    try:
-        sys.stdout.write(json.dumps(response) + "\n")
-        sys.stdout.flush()
-        logger.debug(f"Sent response: {response}")
-    except Exception as e:
-        logger.error(f"Failed to send response: {e}")
-        logger.error(traceback.format_exc())
-
-
-def main():
-    logger.info("MCP server started, waiting for requests...")
-    while True:
-        try:
-            line = sys.stdin.readline()
-            if not line:
-                logger.info("No more input, exiting MCP server.")
-                break
-            logger.debug(f"Received line: {line.strip()}")
-            try:
-                request = json.loads(line)
-            except Exception as e:
-                logger.error(f"Failed to parse JSON: {e}")
-                send_response({"jsonrpc": "2.0", "error": {
-                              "code": -32700, "message": "Parse error"}})
-                continue
-
-            # Handle initialize
-            if request.get("method") == "initialize":
-                logger.info("Received initialize request.")
-                send_response({"jsonrpc": "2.0", "id": request.get(
-                    "id"), "result": {"status": "ok"}})
-                continue
-
-            # Handle tool call
-            if request.get("method") == "tools/call":
-                params = request.get("params", {})
-                name = params.get("name")
-                arguments = params.get("arguments", {})
-                logger.debug(f"Tool call: {name} with arguments: {arguments}")
-                if name == "scrape_web":
-                    url = arguments.get("url")
-                    max_length = arguments.get("max_length")
-                    if not url:
-                        logger.error("Missing 'url' argument.")
-                        send_response({
-                            "jsonrpc": "2.0",
-                            "id": request.get("id"),
-                            "error": {"code": -32602, "message": "URL parameter is required"}
-                        })
-                        continue
-                    try:
-                        # Call the scraper
-                        result = asyncio.run(extract_text_from_url(url))
-                        # If result is a string, wrap it in a dict
-                        if isinstance(result, str):
-                            if '[ERROR]' in result:
-                                result = {
-                                    "status": "error", "extracted_text": result, "final_url": url}
-                            else:
-                                result = {
-                                    "status": "success", "extracted_text": result, "final_url": url}
-                        # Truncate if max_length is set
-                        if result["status"] == "success" and max_length:
-                            result["extracted_text"] = result["extracted_text"][:max_length]
-                        send_response({
-                            "jsonrpc": "2.0",
-                            "id": request.get("id"),
-                            "result": result
-                        })
-                    except Exception as e:
-                        logger.error(f"Exception in scrape_web: {e}")
-                        logger.error(traceback.format_exc())
-                        send_response({
-                            "jsonrpc": "2.0",
-                            "id": request.get("id"),
-                            "error": {"code": -32000, "message": str(e)}
-                        })
-                    continue
-                else:
-                    logger.error(f"Unknown tool name: {name}")
-                    send_response({
-                        "jsonrpc": "2.0",
-                        "id": request.get("id"),
-                        "error": {"code": -32601, "message": "Unknown tool name"}
-                    })
-                    continue
-            # Unknown method
-            logger.error(f"Unknown method: {request.get('method')}")
-            send_response({
-                "jsonrpc": "2.0",
-                "id": request.get("id"),
-                "error": {"code": -32601, "message": "Unknown method"}
-            })
-        except Exception as e:
-            logger.error(f"Fatal error in MCP server loop: {e}")
-            logger.error(traceback.format_exc())
-            send_response({
-                "jsonrpc": "2.0",
-                "error": {"code": -32000, "message": f"Fatal error: {str(e)}"}
-            })
-
-
 if __name__ == "__main__":
-    main()
+    asyncio.run(serve())
