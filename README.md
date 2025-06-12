@@ -30,6 +30,7 @@ This web scraper is used as an MCP (Model Context Protocol) tool, allowing it to
 - `user_agent` (string, optional): Custom User-Agent string
 - `wait_for_network_idle` (boolean, optional): Whether to wait for network activity to settle (default: true)
 - `custom_elements_to_remove` (list, optional): Additional HTML elements to remove
+- `grace_period_seconds` (float, optional): Short grace period to allow JS to finish rendering (in seconds, default: 2.0)
 
 **Returns:**
 - Markdown formatted content extracted from the webpage, as a string
@@ -49,19 +50,6 @@ This web scraper is used as an MCP (Model Context Protocol) tool, allowing it to
 - No REST API or CLI tool is included; this is a pure MCP stdio/JSON-RPC tool.
 - The scraper always extracts the full `<body>` content of web pages, applying only essential noise removal (removing script, style, nav, footer, aside, header, and similar non-content tags). The scraper detects and handles Cloudflare challenge screens, returning a specific error string.
 
-## Configuration Options
-
-All configuration is via code or environment variables. Key options:
-
-| Name                          | Default | Description |
-|-------------------------------|---------|-------------|
-| `DEFAULT_TIMEOUT_SECONDS`     | 30      | Timeout for page loads and navigation (seconds) (env: `DEFAULT_TIMEOUT_SECONDS`) |
-| `DEFAULT_MIN_CONTENT_LENGTH`  | 100     | Minimum content length for extracted text (env: `DEFAULT_MIN_CONTENT_LENGTH`) |
-| `DEFAULT_MIN_SECONDS_BETWEEN_REQUESTS` | 2 | Minimum delay between requests to the same domain (rate limiting) (env: `DEFAULT_MIN_SECONDS_BETWEEN_REQUESTS`) |
-| `DEFAULT_GRACE_PERIOD_SECONDS`| 1       | Short grace period for JS rendering (seconds) (env: `DEFAULT_GRACE_PERIOD_SECONDS`) |
-| `DEFAULT_MAX_CONTENT_LENGTH`  | 5000    | Maximum allowed content length for extracted text (env: `DEFAULT_MAX_CONTENT_LENGTH`) |
-| `DEBUG_LOGS_ENABLED` (env)    | false   | Set to `true` to enable debug logging |
-
 ## Environment Variables
 
 You can override most configuration options using environment variables:
@@ -69,8 +57,6 @@ You can override most configuration options using environment variables:
 - `DEFAULT_TIMEOUT_SECONDS`: Timeout for page loads and navigation (default: 30)
 - `DEFAULT_MIN_CONTENT_LENGTH`: Minimum content length for extracted text (default: 100)
 - `DEFAULT_MIN_SECONDS_BETWEEN_REQUESTS`: Minimum delay between requests to the same domain (default: 2)
-- `DEFAULT_GRACE_PERIOD_SECONDS`: Short grace period for JS rendering (default: 1)
-- `DEFAULT_MAX_CONTENT_LENGTH`: Maximum allowed content length for extracted text (default: 5000)
 - `DEBUG_LOGS_ENABLED`: Set to `true` to enable debug-level logs (default: `false`)
 
 ## Error Handling & Rate Limiting

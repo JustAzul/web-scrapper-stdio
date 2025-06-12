@@ -10,7 +10,7 @@ from mcp.shared.exceptions import McpError
 import asyncio
 from pydantic import BaseModel, Field
 from src.logger import Logger
-from src.config import DEFAULT_TIMEOUT_SECONDS, DEFAULT_MAX_CONTENT_LENGTH
+from src.config import DEFAULT_TIMEOUT_SECONDS
 
 # Use absolute imports instead of relative imports
 try:
@@ -28,11 +28,17 @@ logger = Logger(__name__)
 class ScrapeArgs(BaseModel):
     """Parameters for web scraping."""
     url: str = Field(description="URL to scrape")
-    max_length: int = Field(
-        default=DEFAULT_MAX_CONTENT_LENGTH,
-        description="Maximum number of characters to return.",
+    max_length: int | None = Field(
+        default=None,
+        description="Maximum number of characters to return. If None, unlimited.",
         gt=0,
         lt=1000000,
+    )
+    grace_period_seconds: float = Field(
+        default=2.0,
+        description="Short grace period to allow JS to finish rendering (in seconds)",
+        gt=0,
+        lt=30,
     )
     timeout_seconds: int = Field(
         default=DEFAULT_TIMEOUT_SECONDS,
@@ -125,7 +131,7 @@ async def serve(custom_user_agent: str | None = None):
 
         # Call our existing scraper function
         logger.info(f"Scraping URL: {url}")
-        result = await extract_text_from_url(url)
+        result = await extract_text_from_url(url, custom_timeout=args.timeout_seconds, custom_elements_to_remove=None, grace_period_seconds=args.grace_period_seconds)
 
         if result.get("error"):
             logger.error(
@@ -141,7 +147,7 @@ async def serve(custom_user_agent: str | None = None):
                 content, heading_style=markdownify.ATX)
 
         # Truncate if necessary
-        if content and len(content) > args.max_length:
+        if content and args.max_length is not None and len(content) > args.max_length:
             logger.info(
                 f"Truncating content from {len(content)} to {args.max_length} characters")
             content = content[:args.max_length] + \
