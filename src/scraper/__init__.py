@@ -16,13 +16,30 @@ logger = Logger(__name__)
 
 
 def extract_and_format_content(html_content, elements_to_remove, url):
-    soup, target_element = _extract_and_clean_html(
-        html_content, elements_to_remove)
+    """Clean and parse HTML and return the key content.
+
+    Parameters
+    ----------
+    html_content : str
+        Raw HTML string from the page.
+    elements_to_remove : list
+        Tags to strip from the HTML before parsing.
+    url : str
+        Source URL, used for logging.
+
+    Returns
+    -------
+    tuple
+        A tuple of ``(title, markdown, text, error)`` where ``error`` is ``None``
+        when extraction succeeds.
+    """
+
+    soup, target_element = _extract_and_clean_html(html_content, elements_to_remove)
 
     if not target_element:
         logger.warning(f"Could not find body tag for {url}")
-
         return None, None, None, "[ERROR] Could not find body tag in HTML."
+
     markdown_content, text = _extract_markdown_and_text(target_element)
     page_title = soup.title.string.strip() if soup.title and soup.title.string else ""
 
@@ -33,6 +50,25 @@ async def extract_text_from_url(url: str,
                                 custom_elements_to_remove: list = None,
                                 custom_timeout: int = None,
                                 grace_period_seconds: float = 2.0) -> dict:
+    """Return primary text content from a web page.
+
+    Parameters
+    ----------
+    url : str
+        Page URL to scrape.
+    custom_elements_to_remove : list, optional
+        Additional HTML tags to discard before extraction.
+    custom_timeout : int, optional
+        Override the default timeout value in seconds.
+    grace_period_seconds : float, optional
+        Time to wait after navigation before reading the page.
+
+    Returns
+    -------
+    dict
+        Dictionary with ``title``, ``final_url``, ``markdown_content`` and an
+        ``error`` message if one occurred.
+    """
     timeout_seconds = custom_timeout if custom_timeout is not None else DEFAULT_TIMEOUT_SECONDS
 
     try:
