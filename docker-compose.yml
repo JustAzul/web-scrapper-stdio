@@ -19,3 +19,41 @@ services:
         echo 'Running all tests...';
         pytest -v -rs tests
       "
+
+  test_mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: web-scrapper-tester-mcp
+    environment:
+      - PYTEST_ADDOPTS=--disable-warnings
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./tests:/app/tests
+      - ./src:/app/src
+    shm_size: '2gb'
+    command: >
+      sh -c "
+        pip install -r requirements.txt;
+        echo 'Running only mcp_server tests...';
+        pytest -v -rs tests/test_mcp_server.py
+      "
+
+  test_scraper:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: web-scrapper-tester-scraper
+    environment:
+      - PYTEST_ADDOPTS=--disable-warnings
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./tests:/app/tests
+      - ./src:/app/src
+    shm_size: '2gb'
+    command: >
+      sh -c "
+        pip install -r requirements.txt;
+        echo 'Running only scraper tests...';
+        pytest -v -rs tests/test_scraper.py
+      "
