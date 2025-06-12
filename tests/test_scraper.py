@@ -29,6 +29,15 @@ async def test_extract_text_from_example_com():
 
 
 @pytest.mark.asyncio
+async def test_extract_text_from_example_com_with_max_length():
+    url = "https://example.com"
+    result = await extract_text_from_url(url, max_length=50)
+    assert isinstance(result, dict)
+    assert result.get("markdown_content") is not None
+    assert len(result.get("markdown_content")) <= 50
+
+
+@pytest.mark.asyncio
 async def test_extract_text_from_wikipedia():
     url = "https://en.wikipedia.org/wiki/Web_scraping"
     result = await extract_text_from_url(url)

@@ -131,7 +131,13 @@ async def serve(custom_user_agent: str | None = None):
 
         # Call our existing scraper function
         logger.info(f"Scraping URL: {url}")
-        result = await extract_text_from_url(url, custom_timeout=args.timeout_seconds, custom_elements_to_remove=None, grace_period_seconds=args.grace_period_seconds)
+        result = await extract_text_from_url(
+            url,
+            custom_timeout=args.timeout_seconds,
+            custom_elements_to_remove=None,
+            grace_period_seconds=args.grace_period_seconds,
+            max_length=args.max_length,
+        )
 
         if result.get("error"):
             logger.error(
