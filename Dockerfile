@@ -18,6 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpangocairo-1.0-0 libxss1 \
     wget gnupg curl ca-certificates fonts-liberation libappindicator3-1 \
     lsb-release xdg-utils git && \
+    update-ca-certificates && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
