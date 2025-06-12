@@ -49,7 +49,8 @@ def extract_and_format_content(html_content, elements_to_remove, url):
 async def extract_text_from_url(url: str,
                                 custom_elements_to_remove: list = None,
                                 custom_timeout: int = None,
-                                grace_period_seconds: float = 2.0) -> dict:
+                                grace_period_seconds: float = 2.0,
+                                max_length: int | None = None) -> dict:
     """Return primary text content from a web page.
 
     Parameters
@@ -62,6 +63,8 @@ async def extract_text_from_url(url: str,
         Override the default timeout value in seconds.
     grace_period_seconds : float, optional
         Time to wait after navigation before reading the page.
+    max_length : int | None, optional
+        If provided, truncate the extracted content to this number of characters.
 
     Returns
     -------
@@ -171,16 +174,6 @@ async def extract_text_from_url(url: str,
                         "error": f"[ERROR] No significant text content extracted (too short, less than {min_content_length} characters)."
                     }
                 else:
-                    max_length = None
-                    import inspect
-
-                    frame = inspect.currentframe()
-                    while frame:
-                        if 'max_length' in frame.f_locals:
-                            max_length = frame.f_locals['max_length']
-                            break
-                        frame = frame.f_back
-
                     if max_length is not None:
                         text = text[:max_length]
                         markdown_content = markdown_content[:max_length]
