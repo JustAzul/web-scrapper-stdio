@@ -20,7 +20,6 @@ except ImportError:
     import scraper
     extract_text_from_url = scraper.extract_text_from_url
 
-import markdownify
 
 logger = Logger(__name__)
 
@@ -148,9 +147,6 @@ async def serve(custom_user_agent: str | None = None):
             ))
 
         content = result.get("markdown_content")
-        if content:
-            content = markdownify.markdownify(
-                content, heading_style=markdownify.ATX)
 
         # Truncate if necessary
         if content and args.max_length is not None and len(content) > args.max_length:
@@ -199,9 +195,6 @@ async def serve(custom_user_agent: str | None = None):
             )
 
         content = result.get("markdown_content")
-        if content:
-            content = markdownify.markdownify(
-                content, heading_style=markdownify.ATX)
 
         logger.info(
             f"Successfully scraped {url} for prompt, returning {len(content) if content else 0} characters")
