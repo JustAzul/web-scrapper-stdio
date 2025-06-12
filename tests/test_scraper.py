@@ -4,8 +4,12 @@ import re
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse
-from src.config import DEFAULT_MIN_SECONDS_BETWEEN_REQUESTS, DEFAULT_TEST_REQUEST_TIMEOUT, DEFAULT_TEST_NO_DELAY_THRESHOLD, DEFAULT_MIN_CONTENT_LENGTH
-import time
+from src.config import (
+    DEFAULT_MIN_SECONDS_BETWEEN_REQUESTS,
+    DEFAULT_TEST_REQUEST_TIMEOUT,
+    DEFAULT_TEST_NO_DELAY_THRESHOLD,
+    DEFAULT_MIN_CONTENT_LENGTH,
+)
 
 from src.scraper import extract_text_from_url, get_domain_from_url, apply_rate_limiting
 
