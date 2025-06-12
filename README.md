@@ -73,21 +73,21 @@ All tests must be run using Docker Compose. Do **not** run tests outside Docker.
 
 - **All tests:**
   ```sh
-  docker compose up --build --abort-on-container-exit test | cat
+  docker compose up --build --abort-on-container-exit test
   ```
 - **MCP server tests only:**
   ```sh
-  docker compose up --build --abort-on-container-exit test_mcp | cat
+  docker compose up --build --abort-on-container-exit test_mcp
   ```
 - **Scraper tests only:**
   ```sh
-  docker compose up --build --abort-on-container-exit test_scraper | cat
+  docker compose up --build --abort-on-container-exit test_scraper
   ```
 
 ## Docker Image Publishing
 
 - Docker images are built and published to GitHub Container Registry on release via GitHub Actions (`.github/workflows/release.yml`).
-- Multi-arch images are tagged as `ghcr.io/justazul/web-scrapper-stdio:latest` and by release version.
+- Multi-arch images are tagged as `ghcr.io/justazul/web-scrapper-stdio` and by release version.
 
 ## Cursor IDE Integration
 
@@ -100,7 +100,7 @@ To use this web scraper as a tool in Cursor IDE, add the following configuration
     "run",
     "-i",
     "--rm",
-    "ghcr.io/justazul/web-scrapper-stdio:latest"
+    "ghcr.io/justazul/web-scrapper-stdio"
   ]
 }
 ```
