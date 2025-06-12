@@ -30,7 +30,7 @@ def extract_and_format_content(html_content, elements_to_remove, url):
 
 async def extract_text_from_url(url: str,
                                 custom_elements_to_remove: list = None,
-                                custom_timeout: int = None) -> str:
+                                custom_timeout: int = None) -> dict:
     timeout_seconds = custom_timeout if custom_timeout is not None else DEFAULT_TIMEOUT_SECONDS
 
     try:
@@ -48,7 +48,12 @@ async def extract_text_from_url(url: str,
 
                 if nav_error:
                     await browser.close()
-                    return nav_error
+                    return {
+                        "title": None,
+                        "final_url": url,
+                        "markdown_content": None,
+                        "error": nav_error
+                    }
 
                 logger.debug(f"Waiting for content to stabilize on {page.url}")
                 domain = get_domain_from_url(page.url)
@@ -57,7 +62,12 @@ async def extract_text_from_url(url: str,
                 if not content_found:
                     logger.warning(f"<body> tag not found for {page.url}")
                     await browser.close()
-                    return "[ERROR] <body> tag not found."
+                    return {
+                        "title": None,
+                        "final_url": page.url,
+                        "markdown_content": None,
+                        "error": "[ERROR] <body> tag not found."
+                    }
 
                 logger.debug(f"Extracting content from: {page.url}")
                 html_content = await page.content()
@@ -67,7 +77,12 @@ async def extract_text_from_url(url: str,
 
                 if is_blocked:
                     await browser.close()
-                    return cf_error
+                    return {
+                        "title": None,
+                        "final_url": page.url,
+                        "markdown_content": None,
+                        "error": cf_error
+                    }
 
                 default_elements_to_remove = [
                     'script',
@@ -96,7 +111,12 @@ async def extract_text_from_url(url: str,
 
                 if content_error:
                     await browser.close()
-                    return content_error
+                    return {
+                        "title": None,
+                        "final_url": page.url,
+                        "markdown_content": None,
+                        "error": content_error
+                    }
 
                 original_domain = get_domain_from_url(url)
                 min_content_length = DEFAULT_MIN_CONTENT_LENGTH_SEARCH_APP if original_domain and 'search.app' in original_domain else DEFAULT_MIN_CONTENT_LENGTH
@@ -105,8 +125,12 @@ async def extract_text_from_url(url: str,
                     logger.warning(
                         f"No significant text content extracted (length < {min_content_length}) at {page.url}")
                     await browser.close()
-                    return f"[ERROR] No significant text content extracted (too short, less than {min_content_length} characters)."
-
+                    return {
+                        "title": page_title,
+                        "final_url": page.url,
+                        "markdown_content": None,
+                        "error": f"[ERROR] No significant text content extracted (too short, less than {min_content_length} characters)."
+                    }
                 else:
                     max_length = None
                     import inspect
@@ -127,30 +151,50 @@ async def extract_text_from_url(url: str,
 
                     await browser.close()
 
-                    return (
-                        f"Title: {page_title}\n\n"
-                        f"URL Source: {page.url}\n\n"
-                        f"Markdown Content:\n"
-                        f"{markdown_content}"
-                    )
+                    return {
+                        "title": page_title,
+                        "final_url": page.url,
+                        "markdown_content": markdown_content,
+                        "error": None
+                    }
 
             except Exception as e:
                 logger.warning(
                     f"Unexpected error during scraping of {url}: {e}")
                 await browser.close()
 
-                return f"[ERROR] An unexpected error occurred: {str(e)}"
+                return {
+                    "title": None,
+                    "final_url": url,
+                    "markdown_content": None,
+                    "error": f"[ERROR] An unexpected error occurred: {str(e)}"
+                }
 
     except ImportError:
         logger.warning(
             "Playwright is not installed. Please run 'pip install playwright && playwright install'")
 
-        return "[ERROR] Playwright installation missing."
+        return {
+            "title": None,
+            "final_url": url,
+            "markdown_content": None,
+            "error": "[ERROR] Playwright installation missing."
+        }
 
     except Exception as e:
         logger.warning(
             f"General error setting up Playwright or during execution for {url}: {e}")
 
-        return f"[ERROR] An unexpected error occurred: {str(e)}"
+        return {
+            "title": None,
+            "final_url": url,
+            "markdown_content": None,
+            "error": f"[ERROR] An unexpected error occurred: {str(e)}"
+        }
 
-    return "[ERROR] Unknown error occurred."
+    return {
+        "title": None,
+        "final_url": url,
+        "markdown_content": None,
+        "error": "[ERROR] Unknown error occurred."
+    }
