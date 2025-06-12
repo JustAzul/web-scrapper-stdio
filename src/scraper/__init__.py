@@ -34,7 +34,8 @@ def extract_and_format_content(html_content, elements_to_remove, url):
         when extraction succeeds.
     """
 
-    soup, target_element = _extract_and_clean_html(html_content, elements_to_remove)
+    soup, target_element = _extract_and_clean_html(
+        html_content, elements_to_remove)
 
     if not target_element:
         logger.warning(f"Could not find body tag for {url}")
@@ -86,15 +87,15 @@ async def extract_text_from_url(url: str,
             viewport = random.choice(VIEWPORTS)
             accept_language = random.choice(LANGUAGES)
 
-            browser, context, page = await _setup_browser_context(p, ua, viewport, accept_language, timeout_seconds)
-
+            browser = None
             try:
+                browser, context, page = await _setup_browser_context(p, ua, viewport, accept_language, timeout_seconds)
+
                 await apply_rate_limiting(url)
                 logger.debug(f"Navigating to URL: {url}")
                 response, nav_error = await _navigate_and_handle_errors(page, url, timeout_seconds)
 
                 if nav_error:
-                    await browser.close()
                     return {
                         "title": None,
                         "final_url": url,
@@ -109,7 +110,6 @@ async def extract_text_from_url(url: str,
 
                 if not content_found:
                     logger.warning(f"<body> tag not found for {page.url}")
-                    await browser.close()
                     return {
                         "title": None,
                         "final_url": page.url,
@@ -125,7 +125,6 @@ async def extract_text_from_url(url: str,
                     html_content, page.url)
 
                 if is_blocked:
-                    await browser.close()
                     return {
                         "title": None,
                         "final_url": page.url,
@@ -159,7 +158,6 @@ async def extract_text_from_url(url: str,
                     html_content, elements_to_remove, page.url)
 
                 if content_error:
-                    await browser.close()
                     return {
                         "title": None,
                         "final_url": page.url,
@@ -173,7 +171,6 @@ async def extract_text_from_url(url: str,
                 if _is_content_too_short(text, min_content_length):
                     logger.warning(
                         f"No significant text content extracted (length < {min_content_length}) at {page.url}")
-                    await browser.close()
                     return {
                         "title": page_title,
                         "final_url": page.url,
@@ -188,8 +185,6 @@ async def extract_text_from_url(url: str,
                     logger.debug(
                         f"Successfully extracted text from {page.url}")
 
-                    await browser.close()
-
                     return {
                         "title": page_title,
                         "final_url": page.url,
@@ -200,14 +195,15 @@ async def extract_text_from_url(url: str,
             except Exception as e:
                 logger.warning(
                     f"Unexpected error during scraping of {url}: {e}")
-                await browser.close()
-
                 return {
                     "title": None,
                     "final_url": url,
                     "markdown_content": None,
                     "error": f"[ERROR] An unexpected error occurred: {str(e)}"
                 }
+            finally:
+                if browser is not None:
+                    await browser.close()
 
     except ImportError:
         logger.warning(
