@@ -6,10 +6,19 @@ from src.config import (
     DEFAULT_MIN_CONTENT_LENGTH_SEARCH_APP)
 from src.logger import Logger
 from .helpers.rate_limiting import get_domain_from_url, apply_rate_limiting
-from .helpers.browser import _setup_browser_context, USER_AGENTS, VIEWPORTS, LANGUAGES
-from .helpers.content_selectors import _wait_for_content_stabilization
-from .helpers.html_utils import _extract_and_clean_html, _extract_markdown_and_text, _is_content_too_short
-from .helpers.errors import _navigate_and_handle_errors, _handle_cloudflare_block
+from .helpers.browser import (
+    USER_AGENTS,
+    VIEWPORTS,
+    LANGUAGES,
+    create_browser,
+)
+from .helpers.navigation import navigate_page
+from .helpers.html_utils import (
+    _extract_and_clean_html,
+    _extract_markdown_and_text,
+    _is_content_too_short,
+)
+from .helpers.errors import _handle_cloudflare_block
 import asyncio
 
 logger = Logger(__name__)
@@ -86,128 +95,119 @@ async def extract_text_from_url(url: str,
             viewport = random.choice(VIEWPORTS)
             accept_language = random.choice(LANGUAGES)
 
-            browser, context, page = await _setup_browser_context(p, ua, viewport, accept_language, timeout_seconds)
+            browser, page = await create_browser(
+                p, ua, viewport, accept_language, timeout_seconds
+            )
 
-            try:
-                await apply_rate_limiting(url)
-                logger.debug(f"Navigating to URL: {url}")
-                response, nav_error = await _navigate_and_handle_errors(page, url, timeout_seconds)
+            async with browser:
+                try:
+                    response, nav_error = await navigate_page(
+                        page, url, timeout_seconds, wait_for_network_idle
+                    )
 
-                if nav_error:
-                    await browser.close()
+                    if nav_error:
+                        return {
+                            "title": None,
+                            "final_url": url,
+                            "markdown_content": None,
+                            "error": nav_error,
+                        }
+
+                    logger.debug(f"Extracting content from: {page.url}")
+                    await asyncio.sleep(grace_period_seconds)
+                    html_content = await page.content()
+
+                    is_blocked, cf_error = _handle_cloudflare_block(
+                        html_content, page.url
+                    )
+
+                    if is_blocked:
+                        return {
+                            "title": None,
+                            "final_url": page.url,
+                            "markdown_content": None,
+                            "error": cf_error,
+                        }
+
+                    default_elements_to_remove = [
+                        "script",
+                        "style",
+                        "nav",
+                        "footer",
+                        "aside",
+                        "header",
+                        "form",
+                        "button",
+                        "input",
+                        "select",
+                        "textarea",
+                        "label",
+                        "iframe",
+                        "figure",
+                        "figcaption",
+                    ]
+
+                    elements_to_remove = default_elements_to_remove.copy()
+
+                    if custom_elements_to_remove:
+                        elements_to_remove.extend(custom_elements_to_remove)
+
+                    page_title, markdown_content, text, content_error = extract_and_format_content(
+                        html_content, elements_to_remove, page.url
+                    )
+
+                    if content_error:
+                        return {
+                            "title": None,
+                            "final_url": page.url,
+                            "markdown_content": None,
+                            "error": content_error,
+                        }
+
+                    original_domain = get_domain_from_url(url)
+                    min_content_length = (
+                        DEFAULT_MIN_CONTENT_LENGTH_SEARCH_APP
+                        if original_domain and "search.app" in original_domain
+                        else DEFAULT_MIN_CONTENT_LENGTH
+                    )
+
+                    if _is_content_too_short(text, min_content_length):
+                        logger.warning(
+                            f"No significant text content extracted (length < {min_content_length}) at {page.url}"
+                        )
+                        return {
+                            "title": page_title,
+                            "final_url": page.url,
+                            "markdown_content": None,
+                            "error": f"[ERROR] No significant text content extracted (too short, less than {min_content_length} characters).",
+                        }
+                    else:
+                        if max_length is not None:
+                            text = text[:max_length]
+                            markdown_content = markdown_content[:max_length]
+
+                        logger.debug(
+                            f"Successfully extracted text from {page.url}"
+                        )
+
+                        return {
+                            "title": page_title,
+                            "final_url": page.url,
+                            "markdown_content": markdown_content,
+                            "error": None,
+                        }
+
+                except Exception as e:
+                    logger.warning(
+                        f"Unexpected error during scraping of {url}: {e}"
+                    )
+
                     return {
                         "title": None,
                         "final_url": url,
                         "markdown_content": None,
-                        "error": nav_error
+                        "error": f"[ERROR] An unexpected error occurred: {str(e)}",
                     }
-
-                logger.debug(f"Waiting for content to stabilize on {page.url}")
-                domain = get_domain_from_url(page.url)
-                content_found = await _wait_for_content_stabilization(
-                    page, domain, timeout_seconds, wait_for_network_idle)
-
-                if not content_found:
-                    logger.warning(f"<body> tag not found for {page.url}")
-                    await browser.close()
-                    return {
-                        "title": None,
-                        "final_url": page.url,
-                        "markdown_content": None,
-                        "error": "[ERROR] <body> tag not found."
-                    }
-
-                logger.debug(f"Extracting content from: {page.url}")
-                await asyncio.sleep(grace_period_seconds)
-                html_content = await page.content()
-
-                is_blocked, cf_error = _handle_cloudflare_block(
-                    html_content, page.url)
-
-                if is_blocked:
-                    await browser.close()
-                    return {
-                        "title": None,
-                        "final_url": page.url,
-                        "markdown_content": None,
-                        "error": cf_error
-                    }
-
-                default_elements_to_remove = [
-                    'script',
-                    'style',
-                    'nav',
-                    'footer',
-                    'aside',
-                    'header',
-                    'form',
-                    'button',
-                    'input',
-                    'select',
-                    'textarea',
-                    'label',
-                    'iframe',
-                    'figure',
-                    'figcaption']
-
-                elements_to_remove = default_elements_to_remove.copy()
-
-                if custom_elements_to_remove:
-                    elements_to_remove.extend(custom_elements_to_remove)
-
-                page_title, markdown_content, text, content_error = extract_and_format_content(
-                    html_content, elements_to_remove, page.url)
-
-                if content_error:
-                    await browser.close()
-                    return {
-                        "title": None,
-                        "final_url": page.url,
-                        "markdown_content": None,
-                        "error": content_error
-                    }
-
-                original_domain = get_domain_from_url(url)
-                min_content_length = DEFAULT_MIN_CONTENT_LENGTH_SEARCH_APP if original_domain and 'search.app' in original_domain else DEFAULT_MIN_CONTENT_LENGTH
-
-                if _is_content_too_short(text, min_content_length):
-                    logger.warning(
-                        f"No significant text content extracted (length < {min_content_length}) at {page.url}")
-                    await browser.close()
-                    return {
-                        "title": page_title,
-                        "final_url": page.url,
-                        "markdown_content": None,
-                        "error": f"[ERROR] No significant text content extracted (too short, less than {min_content_length} characters)."
-                    }
-                else:
-                    if max_length is not None:
-                        text = text[:max_length]
-                        markdown_content = markdown_content[:max_length]
-
-                    logger.debug(
-                        f"Successfully extracted text from {page.url}")
-
-                    await browser.close()
-
-                    return {
-                        "title": page_title,
-                        "final_url": page.url,
-                        "markdown_content": markdown_content,
-                        "error": None
-                    }
-
-            except Exception as e:
-                logger.warning(
-                    f"Unexpected error during scraping of {url}: {e}")
-                await browser.close()
-
-                return {
-                    "title": None,
-                    "final_url": url,
-                    "markdown_content": None,
-                    "error": f"[ERROR] An unexpected error occurred: {str(e)}"
-                }
 
     except ImportError:
         logger.warning(

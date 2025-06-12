@@ -26,6 +26,7 @@ async def _setup_browser_context(p, user_agent, viewport, accept_language, timeo
         java_script_enabled=True,
         locale=accept_language.split(",")[0],
         extra_http_headers={"Accept-Language": accept_language},
+        ignore_https_errors=True,
     )
     page = await context.new_page()
 
@@ -39,3 +40,10 @@ async def _setup_browser_context(p, user_agent, viewport, accept_language, timeo
     page.set_default_timeout(timeout_seconds * 1000)
 
     return browser, context, page
+
+
+async def create_browser(p, user_agent, viewport, accept_language, timeout_seconds):
+    browser, _context, page = await _setup_browser_context(
+        p, user_agent, viewport, accept_language, timeout_seconds
+    )
+    return browser, page
