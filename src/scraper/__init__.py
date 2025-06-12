@@ -10,6 +10,7 @@ from .helpers.browser import _setup_browser_context, USER_AGENTS, VIEWPORTS, LAN
 from .helpers.content_selectors import _wait_for_content_stabilization
 from .helpers.html_utils import _extract_and_clean_html, _extract_markdown_and_text, _is_content_too_short
 from .helpers.errors import _navigate_and_handle_errors, _handle_cloudflare_block
+import asyncio
 
 logger = Logger(__name__)
 
@@ -30,7 +31,8 @@ def extract_and_format_content(html_content, elements_to_remove, url):
 
 async def extract_text_from_url(url: str,
                                 custom_elements_to_remove: list = None,
-                                custom_timeout: int = None) -> dict:
+                                custom_timeout: int = None,
+                                grace_period_seconds: float = 2.0) -> dict:
     timeout_seconds = custom_timeout if custom_timeout is not None else DEFAULT_TIMEOUT_SECONDS
 
     try:
@@ -70,6 +72,7 @@ async def extract_text_from_url(url: str,
                     }
 
                 logger.debug(f"Extracting content from: {page.url}")
+                await asyncio.sleep(grace_period_seconds)
                 html_content = await page.content()
 
                 is_blocked, cf_error = _handle_cloudflare_block(
