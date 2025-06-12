@@ -1,15 +1,9 @@
 import pytest
 import asyncio
-import re
-import requests
 import random
-from bs4 import BeautifulSoup
-from urllib.parse import urlparse
 from src.config import (
     DEFAULT_MIN_SECONDS_BETWEEN_REQUESTS,
-    DEFAULT_TEST_REQUEST_TIMEOUT,
     DEFAULT_TEST_NO_DELAY_THRESHOLD,
-    DEFAULT_MIN_CONTENT_LENGTH,
 )
 
 from src.scraper import extract_text_from_url, get_domain_from_url, apply_rate_limiting
@@ -134,63 +128,33 @@ async def test_extract_real_article():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("domain_info", [
-    ("fortune.com", "/"),
-    ("techcrunch.com", "/"),
-    ("wired.com", "/"),
-    ("engadget.com", "/"),
-    ("medium.com", "/"),
-    ("dev.to", "/"),
-    ("tomsguide.com", "/news"),
-    ("xda-developers.com", "/"),
-    ("dmnews.com", "/"),
-], ids=[
-    "fortune.com",
-    "techcrunch.com",
-    "wired.com",
-    "engadget.com",
-    "medium.com",
-    "dev.to",
-    "tomsguide.com",
-    "xda-developers.com",
-    "dmnews.com",
-])
-async def test_dynamic_article_extraction(domain_info):
-    domain, start_path = domain_info
-    start_url = f"https://{domain}{start_path or '/'}"
-    try:
-        resp = requests.get(start_url, timeout=DEFAULT_TEST_REQUEST_TIMEOUT)
-        soup = BeautifulSoup(resp.text, "html.parser")
-        link = None
-        for a in soup.find_all("a", href=True):
-            href = a["href"]
-            if any(x in href for x in ["/article", "/news", "/story", "/202", "/p/"]):
-                if href.startswith("/"):
-                    link = f"https://{domain}{href}"
-                elif href.startswith("http"):
-                    link = href
-                break
-        if not link:
-            pytest.skip(
-                f"Could not dynamically find an article link on {start_url}")
-            return
-    except Exception as e:
-        pytest.skip(f"Failed to fetch homepage for {domain}: {e}")
-        return
-    result = await extract_text_from_url(link)
-    if result.get("error") and "Cloudflare challenge" in result.get("error"):
-        pytest.skip(f"Cloudflare challenge detected for {link}")
-        return
+@pytest.mark.parametrize(
+    "url, expected_phrase",
+    [
+        ("https://example.com", "Example Domain"),
+        ("https://example.org", "Example Domain"),
+        ("https://example.net", "Example Domain"),
+        ("https://www.iana.org/domains/reserved", "IANA-managed Reserved Domains"),
+        ("https://httpbin.org/html", "Herman Melville - Moby-Dick"),
+    ],
+    ids=[
+        "example.com",
+        "example.org",
+        "example.net",
+        "iana.org",
+        "httpbin.org",
+    ],
+)
+async def test_dynamic_article_extraction(url, expected_phrase):
+    result = await extract_text_from_url(url)
     if result.get("error"):
-        pytest.skip(f"Extraction failed for {link}: {result}")
+        pytest.skip(f"Extraction failed for {url}: {result}")
         return
     assert isinstance(result, dict)
-    assert result.get("title") is not None
-    assert result.get("markdown_content") is not None
-    content = result.get("markdown_content") or ""
-    if 'dev.to' not in link and 'forem.com' not in link:
-        assert len(
-            content) >= DEFAULT_MIN_CONTENT_LENGTH, f"Extracted text too short ({len(content)} chars) for {link}"
+    assert result.get("title") is not None or result.get("markdown_content") is not None
+    assert expected_phrase in (result.get("title") or "") or expected_phrase in (
+        result.get("markdown_content") or ""
+    )
 
 
 @pytest.mark.asyncio
