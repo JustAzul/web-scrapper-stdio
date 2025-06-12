@@ -197,7 +197,7 @@ async def extract_text_from_url(url: str,
                         "title": page_title,
                         "final_url": page.url,
                         "content": content,
-                        "error": None
+                        "error": None,
                     }
 
             except Exception as e:
