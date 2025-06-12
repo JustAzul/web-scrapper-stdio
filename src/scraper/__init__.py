@@ -47,10 +47,12 @@ def extract_and_format_content(html_content, elements_to_remove, url):
 
 
 async def extract_text_from_url(url: str,
-                                custom_elements_to_remove: list = None,
-                                custom_timeout: int = None,
+                                custom_elements_to_remove: list | None = None,
+                                custom_timeout: int | None = None,
                                 grace_period_seconds: float = 2.0,
-                                max_length: int | None = None) -> dict:
+                                max_length: int | None = None,
+                                user_agent: str | None = None,
+                                wait_for_network_idle: bool = True) -> dict:
     """Return primary text content from a web page.
 
     Parameters
@@ -65,6 +67,10 @@ async def extract_text_from_url(url: str,
         Time to wait after navigation before reading the page.
     max_length : int | None, optional
         If provided, truncate the extracted content to this number of characters.
+    user_agent : str | None, optional
+        Custom User-Agent string. A random one is used if not provided.
+    wait_for_network_idle : bool, optional
+        Whether to wait for network activity to settle before extracting content.
 
     Returns
     -------
@@ -76,11 +82,11 @@ async def extract_text_from_url(url: str,
 
     try:
         async with async_playwright() as p:
-            user_agent = random.choice(USER_AGENTS)
+            ua = user_agent or random.choice(USER_AGENTS)
             viewport = random.choice(VIEWPORTS)
             accept_language = random.choice(LANGUAGES)
 
-            browser, context, page = await _setup_browser_context(p, user_agent, viewport, accept_language, timeout_seconds)
+            browser, context, page = await _setup_browser_context(p, ua, viewport, accept_language, timeout_seconds)
 
             try:
                 await apply_rate_limiting(url)
@@ -98,7 +104,8 @@ async def extract_text_from_url(url: str,
 
                 logger.debug(f"Waiting for content to stabilize on {page.url}")
                 domain = get_domain_from_url(page.url)
-                content_found = await _wait_for_content_stabilization(page, domain, timeout_seconds)
+                content_found = await _wait_for_content_stabilization(
+                    page, domain, timeout_seconds, wait_for_network_idle)
 
                 if not content_found:
                     logger.warning(f"<body> tag not found for {page.url}")

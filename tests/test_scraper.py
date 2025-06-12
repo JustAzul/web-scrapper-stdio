@@ -2,6 +2,7 @@ import pytest
 import asyncio
 import re
 import requests
+import random
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse
 from src.config import (
@@ -12,6 +13,7 @@ from src.config import (
 )
 
 from src.scraper import extract_text_from_url, get_domain_from_url, apply_rate_limiting
+from src.scraper.helpers.browser import USER_AGENTS
 
 
 @pytest.mark.asyncio
@@ -233,3 +235,16 @@ async def test_grace_period_seconds_js_delay():
     # The longer grace period should yield more content
     assert len(result_long.get("markdown_content") or "") > len(result_short.get(
         "markdown_content") or ""), "Longer grace period did not capture more content."
+
+
+@pytest.mark.asyncio
+async def test_custom_user_agent_and_no_network_idle():
+    url = "https://example.com"
+    result = await extract_text_from_url(
+        url,
+        user_agent=random.choice(USER_AGENTS),
+        wait_for_network_idle=False,
+    )
+    assert isinstance(result, dict)
+    assert result.get("markdown_content") is not None
+    assert not result.get("error")

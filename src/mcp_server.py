@@ -136,6 +136,8 @@ async def serve(custom_user_agent: str | None = None):
             custom_elements_to_remove=None,
             grace_period_seconds=args.grace_period_seconds,
             max_length=args.max_length,
+            user_agent=args.user_agent,
+            wait_for_network_idle=args.wait_for_network_idle,
         )
 
         if result.get("error"):
