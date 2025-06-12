@@ -50,6 +50,28 @@ class ScrapeArgs(BaseModel):
     )
 
 
+async def mcp_extract_text_map(url: str, *args, **kwargs) -> dict:
+    """
+    MCP-specific wrapper for extract_text_from_url that returns a dict with status, extracted_text, and final_url.
+    """
+    result = await extract_text_from_url(url, *args, **kwargs)
+    if result.get("error"):
+        return {
+            "status": "error",
+            "extracted_text": None,
+            "final_url": result.get("final_url", url),
+            "title": result.get("title"),
+            "error_message": result["error"]
+        }
+    return {
+        "status": "success",
+        "extracted_text": result.get("markdown_content"),
+        "final_url": result.get("final_url", url),
+        "title": result.get("title"),
+        "error_message": None
+    }
+
+
 async def serve(custom_user_agent: str | None = None):
     logger.info("Starting MCP web scraper server (stdio mode)")
     server = Server("mcp-web-scraper")
@@ -105,32 +127,31 @@ async def serve(custom_user_agent: str | None = None):
         logger.info(f"Scraping URL: {url}")
         result = await extract_text_from_url(url)
 
-        if result["status"] != "success":
+        if result.get("error"):
             logger.error(
-                f"Failed to scrape {url}: {result['error_message'] or result['status']}")
+                f"Failed to scrape {url}: {result['error']}")
             raise McpError(ErrorData(
                 code=INTERNAL_ERROR,
-                message=f"Failed to scrape {url}: {result['error_message'] or result['status']}"
+                message=f"Failed to scrape {url}: {result['error']}"
             ))
 
-        # Convert to Markdown if not already done
-        content = result["extracted_text"]
-        if content and result["status"] == "success":
+        content = result.get("markdown_content")
+        if content:
             content = markdownify.markdownify(
                 content, heading_style=markdownify.ATX)
 
         # Truncate if necessary
-        if len(content) > args.max_length:
+        if content and len(content) > args.max_length:
             logger.info(
                 f"Truncating content from {len(content)} to {args.max_length} characters")
             content = content[:args.max_length] + \
                 "\n\n[Content truncated due to length]"
 
         logger.info(
-            f"Successfully scraped {url}, returning {len(content)} characters")
+            f"Successfully scraped {url}, returning {len(content) if content else 0} characters")
         return [TextContent(
             type="text",
-            text=f"Scraped content from {result['final_url']}:\n\n{content}"
+            text=f"Scraped content from {result.get('final_url', url)}:\n\n{content}"
         )]
 
     @server.get_prompt()
@@ -149,9 +170,9 @@ async def serve(custom_user_agent: str | None = None):
         logger.info(f"Scraping URL for prompt: {url}")
         result = await extract_text_from_url(url)
 
-        if result["status"] != "success":
+        if result.get("error"):
             logger.error(
-                f"Failed to scrape {url} for prompt: {result['error_message'] or result['status']}")
+                f"Failed to scrape {url} for prompt: {result['error']}")
             return GetPromptResult(
                 description=f"Failed to scrape {url}",
                 messages=[
@@ -159,22 +180,21 @@ async def serve(custom_user_agent: str | None = None):
                         role="user",
                         content=TextContent(
                             type="text",
-                            text=f"Failed to scrape content from {url}: {result['error_message'] or result['status']}"
+                            text=f"Failed to scrape content from {url}: {result['error']}"
                         ),
                     )
                 ],
             )
 
-        # Convert to Markdown if needed
-        content = result["extracted_text"]
+        content = result.get("markdown_content")
         if content:
             content = markdownify.markdownify(
                 content, heading_style=markdownify.ATX)
 
         logger.info(
-            f"Successfully scraped {url} for prompt, returning {len(content)} characters")
+            f"Successfully scraped {url} for prompt, returning {len(content) if content else 0} characters")
         return GetPromptResult(
-            description=f"Scraped content from {result['final_url']}",
+            description=f"Scraped content from {result.get('final_url', url)}",
             messages=[
                 PromptMessage(
                     role="user",
