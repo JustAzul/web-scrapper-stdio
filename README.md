@@ -1,44 +1,29 @@
 # Web Scraper Service (MCP Stdin/Stdout, Markdown Output)
 
-## Usage (MCP Stdin/Stdout)
+## Project Overview
 
-Run the web scraper as a Docker container that reads JSON-RPC lines from stdin and outputs results as formatted strings (Markdown with metadata):
+This project is a Python-based web scraper that extracts primary text content from web pages, outputting Markdown via a simple stdio/JSON-RPC interface. It is designed as an MCP (Model Context Protocol) server for seamless AI model interaction.
 
-```
-echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "scrape_web", "arguments": {"url": "https://example.com"}}}' | docker run -i --rm ghcr.io/justazul/web-scrapper-stdio:latest
-```
+- **Core scraping logic:** `src/scraper/`
+- **MCP server entrypoint:** `src/mcp_server.py`
+- **Dockerfile:** for containerization and tests
+- **All dependencies:** `requirements.txt`
 
-- Each input line must be a JSON-RPC 2.0 object with a `url` field in `arguments`.
-- The output is a JSON-RPC response with:
-  - `status` (success/error)
-  - `extracted_text` (Markdown content)
-  - `final_url` (the resolved URL)
-  - Errors are reported as strings starting with `[ERROR] ...` in the `extracted_text` field or as an `error` object.
+## Technology Stack
+- Python 3.11+
+- Playwright (headless browser automation)
+- BeautifulSoup (HTML parsing)
+- Markdownify (HTML to Markdown)
+- Docker
+- MCP (Model Context Protocol)
 
-**Example Output:**
-```
-{"jsonrpc": "2.0", "id": 1, "result": {"status": "success", "extracted_text": "Title: Example Domain\n\nURL Source: https://example.com/\n\nMarkdown Content:\n# Example Domain\n\nThis domain is for use in illustrative examples in documents...", "final_url": "https://example.com"}}
-```
+## Usage
 
-## Usage (Docker)
-
-Build and run the Docker image (if not using the published image):
-
-```
-docker build -t web-scrapper-stdio:latest .
-```
-
-Run the container with a JSON-RPC request:
-
-```
-echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "scrape_web", "arguments": {"url": "https://example.com"}}}' | docker run -i --rm ghcr.io/justazul/web-scrapper-stdio:latest
-```
-
-## Usage (MCP Server)
+### MCP Server (Tool/Prompt)
 
 This web scraper is used as an MCP (Model Context Protocol) tool, allowing it to be used by AI models or other automation directly.
 
-### Tool Name: scrape_web
+#### Tool: `scrape_web`
 
 **Parameters:**
 - `url` (string, required): The URL to scrape
@@ -49,16 +34,10 @@ This web scraper is used as an MCP (Model Context Protocol) tool, allowing it to
 - `custom_elements_to_remove` (list, optional): Additional HTML elements to remove
 
 **Returns:**
-- Markdown formatted content extracted from the webpage, as a string (see example above)
+- Markdown formatted content extracted from the webpage, as a string
 - Errors are reported as strings starting with `[ERROR] ...`
 
-### Example:
-
-```
-{"jsonrpc": "2.0", "id": 1, "result": {"status": "success", "extracted_text": "Title: Example Domain\n\nURL Source: https://example.com/\n\nMarkdown Content:\n# Example Domain\n\nThis domain is for use in illustrative examples in documents...", "final_url": "https://example.com"}}
-```
-
-### Prompt Name: scrape
+#### Prompt: `scrape`
 
 **Parameters:**
 - `url` (string, required): The URL to scrape
@@ -70,25 +49,63 @@ This web scraper is used as an MCP (Model Context Protocol) tool, allowing it to
 - Output is always Markdown for easy downstream use.
 - The scraper does not check robots.txt and will attempt to fetch any URL provided.
 - No REST API or CLI tool is included; this is a pure MCP stdio/JSON-RPC tool.
-- The scraper always extracts the full <body> content of web pages, applying only essential noise removal (removing script, style, nav, footer, aside, header, and similar non-content tags). Domain-specific selectors are no longer used. The scraper detects and handles Cloudflare challenge screens, returning a specific error string.
+- The scraper always extracts the full `<body>` content of web pages, applying only essential noise removal (removing script, style, nav, footer, aside, header, and similar non-content tags). The scraper detects and handles Cloudflare challenge screens, returning a specific error string.
 
-## Project Overview
+## Configuration Options
 
-This project is a Python-based web scraper that extracts primary text content from web pages, outputting Markdown via a simple stdio/JSON-RPC interface. It is designed for use in pipelines, containers, and AI toolchains, with a focus on MCP (Model Context Protocol) integration for seamless AI model interaction.
+All configuration is via code or environment variables. Key options:
 
-## Technology Stack
-- Python 3.11+
-- Playwright
-- BeautifulSoup
-- Markdownify
-- Docker
-- MCP (Model Context Protocol)
+| Name                          | Default | Description |
+|-------------------------------|---------|-------------|
+| `DEFAULT_TIMEOUT_SECONDS`     | 30      | Timeout for page loads and navigation (seconds) (env: `DEFAULT_TIMEOUT_SECONDS`) |
+| `DEFAULT_MIN_CONTENT_LENGTH`  | 100     | Minimum content length for extracted text (env: `DEFAULT_MIN_CONTENT_LENGTH`) |
+| `DEFAULT_MIN_SECONDS_BETWEEN_REQUESTS` | 2 | Minimum delay between requests to the same domain (rate limiting) (env: `DEFAULT_MIN_SECONDS_BETWEEN_REQUESTS`) |
+| `DEFAULT_GRACE_PERIOD_SECONDS`| 1       | Short grace period for JS rendering (seconds) (env: `DEFAULT_GRACE_PERIOD_SECONDS`) |
+| `DEFAULT_MAX_CONTENT_LENGTH`  | 5000    | Maximum allowed content length for extracted text (env: `DEFAULT_MAX_CONTENT_LENGTH`) |
+| `DEBUG_LOGS_ENABLED` (env)    | false   | Set to `true` to enable debug logging |
 
-## Development
-- Core scraping logic: `src/scraper/`
-- MCP server entrypoint: `src/mcp_server.py`
-- Dockerfile: for tests
-- All dependencies: `requirements.txt`
+## Environment Variables
+
+You can override most configuration options using environment variables:
+
+- `DEFAULT_TIMEOUT_SECONDS`: Timeout for page loads and navigation (default: 30)
+- `DEFAULT_MIN_CONTENT_LENGTH`: Minimum content length for extracted text (default: 100)
+- `DEFAULT_MIN_SECONDS_BETWEEN_REQUESTS`: Minimum delay between requests to the same domain (default: 2)
+- `DEFAULT_GRACE_PERIOD_SECONDS`: Short grace period for JS rendering (default: 1)
+- `DEFAULT_MAX_CONTENT_LENGTH`: Maximum allowed content length for extracted text (default: 5000)
+- `DEBUG_LOGS_ENABLED`: Set to `true` to enable debug-level logs (default: `false`)
+
+`DEFAULT_MIN_CONTENT_LENGTH_SEARCH_APP` is not settable via environment variable by design.
+
+## Error Handling & Rate Limiting
+
+- The scraper detects and returns errors for navigation failures, timeouts, HTTP errors (including 404), and Cloudflare anti-bot challenges.
+- Rate limiting is enforced per domain (default: 2 seconds between requests).
+- Cloudflare and similar anti-bot screens are detected and reported as errors.
+
+## Development & Testing
+
+### Running Tests (Docker Compose)
+
+All tests must be run using Docker Compose. Do **not** run tests outside Docker.
+
+- **All tests:**
+  ```sh
+  docker compose up --build --abort-on-container-exit test | cat
+  ```
+- **MCP server tests only:**
+  ```sh
+  docker compose up --build --abort-on-container-exit test_mcp | cat
+  ```
+- **Scraper tests only:**
+  ```sh
+  docker compose up --build --abort-on-container-exit test_scraper | cat
+  ```
+
+## Docker Image Publishing
+
+- Docker images are built and published to GitHub Container Registry on release via GitHub Actions (`.github/workflows/release.yml`).
+- Multi-arch images are tagged as `ghcr.io/justazul/web-scrapper-stdio:latest` and by release version.
 
 ## Cursor IDE Integration
 
