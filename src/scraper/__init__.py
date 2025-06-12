@@ -162,7 +162,6 @@ async def extract_text_from_url(url: str,
 
                 page_title, html, content_error = extract_clean_html(
                     html_content, elements_to_remove, page.url)
-                text = to_text(html)
 
                 if content_error:
                     return {
@@ -171,6 +170,8 @@ async def extract_text_from_url(url: str,
                         "content": None,
                         "error": content_error
                     }
+
+                text = to_text(html)
 
                 original_domain = get_domain_from_url(url)
                 min_content_length = DEFAULT_MIN_CONTENT_LENGTH_SEARCH_APP if original_domain and 'search.app' in original_domain else DEFAULT_MIN_CONTENT_LENGTH
