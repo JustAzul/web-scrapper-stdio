@@ -78,8 +78,8 @@ async def mcp_extract_text_map(url: str, *args, **kwargs) -> dict:
 
 
 async def serve(custom_user_agent: str | None = None):
-    logger.info("Starting MCP web scraper server (stdio mode)")
-    server = Server("mcp-web-scraper")
+    logger.info("Starting MCP web scrapper server (stdio mode)")
+    server = Server("mcp-web-scrapper")
 
     @server.list_tools()
     async def list_tools() -> list[Tool]:

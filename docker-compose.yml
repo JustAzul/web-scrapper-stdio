@@ -39,11 +39,11 @@ services:
         pytest -v -rs tests/test_mcp_server.py
       "
 
-  test_scraper:
+  test_scrapper:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: web-scrapper-tester-scraper
+    container_name: web-scrapper-tester-scrapper
     environment:
       - PYTEST_ADDOPTS=--disable-warnings
       - PYTHONUNBUFFERED=1
@@ -54,6 +54,6 @@ services:
     command: >
       sh -c "
         pip install -r requirements.txt;
-        echo 'Running only scraper tests...';
+        echo 'Running only scrapper tests...';
         pytest -v -rs tests/test_scraper.py
       "

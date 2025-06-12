@@ -1,6 +1,6 @@
-## Web Scraper Service (MCP Stdin/Stdout, Markdown Output)
+## Web Scrapper Service (MCP Stdin/Stdout, Markdown Output)
 
-This project is a Python-based web scraper that extracts primary text content from web pages, outputting Markdown via a simple stdio/JSON-RPC interface. It is designed as an MCP (Model Context Protocol) server for seamless AI model interaction.
+This project is a Python-based web scrapper that extracts primary text content from web pages, outputting Markdown via a simple stdio/JSON-RPC interface. It is designed as an MCP (Model Context Protocol) server for seamless AI model interaction.
 
 - **Core scraping logic:** `src/scraper/`
 - **MCP server entrypoint:** `src/mcp_server.py`
@@ -19,7 +19,7 @@ This project is a Python-based web scraper that extracts primary text content fr
 
 ### MCP Server (Tool/Prompt)
 
-This web scraper is used as an MCP (Model Context Protocol) tool, allowing it to be used by AI models or other automation directly.
+This web scrapper is used as an MCP (Model Context Protocol) tool, allowing it to be used by AI models or other automation directly.
 
 #### Tool: `scrape_web`
 
@@ -46,9 +46,9 @@ This web scraper is used as an MCP (Model Context Protocol) tool, allowing it to
 
 **Note:**
 - Output is always Markdown for easy downstream use.
-- The scraper does not check robots.txt and will attempt to fetch any URL provided.
+- The scrapper does not check robots.txt and will attempt to fetch any URL provided.
 - No REST API or CLI tool is included; this is a pure MCP stdio/JSON-RPC tool.
-- The scraper always extracts the full `<body>` content of web pages, applying only essential noise removal (removing script, style, nav, footer, aside, header, and similar non-content tags). The scraper detects and handles Cloudflare challenge screens, returning a specific error string.
+- The scrapper always extracts the full `<body>` content of web pages, applying only essential noise removal (removing script, style, nav, footer, aside, header, and similar non-content tags). The scrapper detects and handles Cloudflare challenge screens, returning a specific error string.
 
 ## Environment Variables
 
@@ -61,7 +61,7 @@ You can override most configuration options using environment variables:
 
 ## Error Handling & Rate Limiting
 
-- The scraper detects and returns errors for navigation failures, timeouts, HTTP errors (including 404), and Cloudflare anti-bot challenges.
+- The scrapper detects and returns errors for navigation failures, timeouts, HTTP errors (including 404), and Cloudflare anti-bot challenges.
 - Rate limiting is enforced per domain (default: 2 seconds between requests).
 - Cloudflare and similar anti-bot screens are detected and reported as errors.
 
@@ -79,14 +79,14 @@ All tests must be run using Docker Compose. Do **not** run tests outside Docker.
   ```sh
   docker compose up --build --abort-on-container-exit test_mcp
   ```
-- **Scraper tests only:**
+- **Scrapper tests only:**
   ```sh
-  docker compose up --build --abort-on-container-exit test_scraper
+  docker compose up --build --abort-on-container-exit test_scrapper
   ```
 
 ## Cursor IDE Integration
 
-To use this web scraper as a tool in Cursor IDE, add the following configuration to your `mcp.json`:
+To use this web scrapper as a tool in Cursor IDE, add the following configuration to your `mcp.json`:
 
 ```json
 "web-scrapper-stdio": {
@@ -100,4 +100,4 @@ To use this web scraper as a tool in Cursor IDE, add the following configuration
 }
 ```
 
-This configuration allows Cursor IDE to invoke the web scraper container directly for web content extraction via MCP stdio/JSON-RPC.
+This configuration allows Cursor IDE to invoke the web scrapper container directly for web content extraction via MCP stdio/JSON-RPC.
