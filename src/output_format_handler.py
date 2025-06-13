@@ -13,3 +13,5 @@ format_content = _module.format_content
 to_markdown = _module.to_markdown
 to_text = _module.to_text
 to_html = _module.to_html
+truncate_html = _module.truncate_html
+truncate_content = _module.truncate_content

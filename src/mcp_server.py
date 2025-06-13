@@ -103,13 +103,20 @@ async def serve(custom_user_agent: str | None = None):
         return [
             Prompt(
                 name="scrape",
-                description="Scrape a webpage and extract its main content as markdown",
+                description=(
+                    "Scrape a webpage and extract its main content in the selected format"
+                ),
                 arguments=[
                     PromptArgument(
                         name="url",
                         description="URL to scrape",
                         required=True
-                    )
+                    ),
+                    PromptArgument(
+                        name="output_format",
+                        description="Choose markdown, text, or html (default: markdown)",
+                        required=False,
+                    ),
                 ],
             )
         ]
@@ -175,9 +182,24 @@ async def serve(custom_user_agent: str | None = None):
             raise McpError(ErrorData(code=INVALID_PARAMS,
                            message="URL is required"))
 
-        url = arguments["url"]
+        try:
+            args = ScrapeArgs(**arguments)
+        except ValueError as e:
+            logger.error(f"Invalid parameters: {e}")
+            raise McpError(ErrorData(code=INVALID_PARAMS, message=str(e)))
+
+        url = args.url
         logger.info(f"Scraping URL for prompt: {url}")
-        result = await extract_text_from_url(url)
+        result = await extract_text_from_url(
+            url,
+            custom_timeout=args.timeout_seconds,
+            custom_elements_to_remove=None,
+            grace_period_seconds=args.grace_period_seconds,
+            max_length=args.max_length,
+            user_agent=args.user_agent,
+            wait_for_network_idle=args.wait_for_network_idle,
+            output_format=args.output_format,
+        )
 
         if result.get("error"):
             logger.error(

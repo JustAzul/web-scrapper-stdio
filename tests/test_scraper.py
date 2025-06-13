@@ -59,6 +59,21 @@ async def test_extract_text_from_example_com_with_max_length():
 
 
 @pytest.mark.asyncio
+async def test_html_truncation_produces_valid_markup():
+    url = "http://example.com"
+    result = await extract_text_from_url(
+        url, max_length=50, output_format=OutputFormat.HTML
+    )
+    if result.get("error"):
+        pytest.skip(f"Extraction failed: {result}")
+    assert isinstance(result, dict)
+    content = result.get("content")
+    assert content is not None
+    soup = BeautifulSoup(content, "html.parser")
+    assert len(soup.get_text()) <= 50
+
+
+@pytest.mark.asyncio
 async def test_extract_text_from_wikipedia():
     url = "https://en.wikipedia.org/wiki/Web_scraping"
     result = await extract_text_from_url(url)

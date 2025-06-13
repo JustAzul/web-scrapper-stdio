@@ -8,6 +8,7 @@ from src.logger import Logger
 from src.output_format_handler import (
     OutputFormat,
     format_content,
+    truncate_content,
     to_text,
 )
 from .helpers.rate_limiting import get_domain_from_url, apply_rate_limiting
@@ -190,8 +191,7 @@ async def extract_text_from_url(url: str,
                         f"Successfully extracted text from {page.url}")
 
                     content = format_content(html, output_format)
-                    if max_length is not None:
-                        content = content[:max_length]
+                    content = truncate_content(content, max_length, output_format)
 
                     return {
                         "title": page_title,
