@@ -24,13 +24,14 @@ This web scrapper is used as an MCP (Model Context Protocol) tool, allowing it t
 #### Tool: `scrape_web`
 
 **Parameters:**
-- `url` (string, required): The URL to scrape
+ - `url` (string, required): The URL to scrape
 - `max_length` (integer, optional): Maximum length of returned content (default: 5000)
 - `timeout_seconds` (integer, optional): Timeout in seconds for the page load (default: 30)
 - `user_agent` (string, optional): Custom User-Agent string passed directly to the browser (defaults to a random agent)
 - `wait_for_network_idle` (boolean, optional): Wait for network activity to settle before scraping (default: true)
 - `custom_elements_to_remove` (list, optional): Additional HTML elements to remove
 - `grace_period_seconds` (float, optional): Short grace period to allow JS to finish rendering (in seconds, default: 2.0)
+- `output_format` (string, optional): Desired format of returned content. Options are `markdown`, `text`, or `html` (default: `markdown`)
 
 **Returns:**
 - Content extracted from the webpage in the selected format
@@ -40,6 +41,7 @@ This web scrapper is used as an MCP (Model Context Protocol) tool, allowing it t
 
 **Parameters:**
 - `url` (string, required): The URL to scrape
+- `output_format` (string, optional): Choose `markdown`, `text`, or `html` (default: `markdown`)
 
 **Returns:**
 - Content extracted from the webpage in the selected format
