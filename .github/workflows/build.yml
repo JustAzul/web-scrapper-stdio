@@ -5,9 +5,6 @@ on:
     branches: [master]
   pull_request:
     branches: [master]
-  release:
-    types: [published, created]
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -15,3 +12,23 @@ jobs:
       - uses: actions/checkout@v3
       - name: Test Docker build
         run: docker build --no-cache -t web-scrapper-stdio .
+      - name: Update build badge
+        if: success()
+        uses: schneegans/dynamic-badges-action@v1.6.0
+        with:
+          auth: ${{ secrets.GIST_SECRET }}
+          gistID: d3ad29ac6775300b8475b9cedd434ae2
+          filename: web-scrapper-stdio_build.json
+          label: build
+          message: passing
+          color: green
+      - name: Update build badge (on failure)
+        if: failure()
+        uses: schneegans/dynamic-badges-action@v1.6.0
+        with:
+          auth: ${{ secrets.GIST_SECRET }}
+          gistID: d3ad29ac6775300b8475b9cedd434ae2
+          filename: web-scrapper-stdio_build.json
+          label: build
+          message: failing
+          color: red
