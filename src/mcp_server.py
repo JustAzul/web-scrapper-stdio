@@ -126,8 +126,11 @@ async def serve(custom_user_agent: str | None = None):
             raise McpError(ErrorData(code=INVALID_PARAMS,
                            message=f"Unknown tool: {name}"))
 
+        # Filter out None values from arguments
+        filtered_arguments = {k: v for k, v in arguments.items() if v is not None}
+
         try:
-            args = ScrapeArgs(**arguments)
+            args = ScrapeArgs(**filtered_arguments)
         except ValueError as e:
             logger.error(f"Invalid parameters: {e}")
             raise McpError(ErrorData(code=INVALID_PARAMS, message=str(e)))
