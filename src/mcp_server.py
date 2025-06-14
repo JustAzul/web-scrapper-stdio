@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from src.logger import Logger
 from src.config import DEFAULT_TIMEOUT_SECONDS
 from src.output_format_handler import OutputFormat
+from src.utils import filter_none_values
 
 # Use absolute imports instead of relative imports
 try:
@@ -57,6 +58,10 @@ class ScrapeArgs(BaseModel):
     output_format: OutputFormat = Field(
         default=OutputFormat.MARKDOWN,
         description="Desired output format: markdown, text, or html."
+    )
+    click_selector: str | None = Field(
+        default=None,
+        description="If provided, click the element matching this selector after navigation and before extraction."
     )
 
 
@@ -126,8 +131,8 @@ async def serve(custom_user_agent: str | None = None):
             raise McpError(ErrorData(code=INVALID_PARAMS,
                            message=f"Unknown tool: {name}"))
 
-        # Filter out None values from arguments
-        filtered_arguments = {k: v for k, v in arguments.items() if v is not None}
+        # Create a filtered copy of arguments without mutating the original
+        filtered_arguments = filter_none_values(arguments)
 
         try:
             args = ScrapeArgs(**filtered_arguments)
@@ -152,6 +157,7 @@ async def serve(custom_user_agent: str | None = None):
             user_agent=args.user_agent,
             wait_for_network_idle=args.wait_for_network_idle,
             output_format=args.output_format,
+            click_selector=args.click_selector,
         )
 
         if result.get("error"):
