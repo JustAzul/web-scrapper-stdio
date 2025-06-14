@@ -13,9 +13,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
       - name: Run tests (Docker Compose)
         run: docker compose up --build --abort-on-container-exit test
       - name: Upload test results
@@ -29,12 +26,12 @@ jobs:
     needs: build-test
     steps:
       - uses: actions/checkout@v3
+      - name: Build Docker image
+        run: docker compose build test
+      - name: Run coverage in container
+        run: docker compose run --rm -T -v ${{ github.workspace }}:/app test pytest --cov=src --cov-report=term --cov-report=json:/app/coverage.json
+      - name: Extract coverage percent
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-      - name: Run tests (Docker Compose)
-        run: docker compose up --build --abort-on-container-exit test
-          pytest --cov=src --cov-report=term --cov-report=json:coverage.json
           COVERAGE=$(python -c "import json; print(json.load(open('coverage.json'))['totals']['percent_covered_display'])")
           echo "COVERAGE=$COVERAGE" >> $GITHUB_ENV
       - name: Update coverage badge
