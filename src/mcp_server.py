@@ -63,6 +63,10 @@ class ScrapeArgs(BaseModel):
         default=None,
         description="If provided, click the element matching this selector after navigation and before extraction."
     )
+    custom_elements_to_remove: list[str] | None = Field(
+        default=None,
+        description="Additional HTML elements (CSS selectors) to remove before extraction."
+    )
 
 
 async def mcp_extract_text_map(url: str, *args, **kwargs) -> dict:
@@ -151,7 +155,7 @@ async def serve(custom_user_agent: str | None = None):
         result = await extract_text_from_url(
             url,
             custom_timeout=args.timeout_seconds,
-            custom_elements_to_remove=None,
+            custom_elements_to_remove=args.custom_elements_to_remove,
             grace_period_seconds=args.grace_period_seconds,
             max_length=args.max_length,
             user_agent=args.user_agent,
