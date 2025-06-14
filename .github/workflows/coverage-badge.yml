@@ -13,16 +13,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      - name: Run tests
-        run: pytest --maxfail=1 --disable-warnings --tb=short
+      - name: Run tests (Docker Compose)
+        run: docker compose up --build --abort-on-container-exit test
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
@@ -34,16 +29,11 @@ jobs:
     needs: build-test
     steps:
       - uses: actions/checkout@v3
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      - name: Run tests and collect coverage
-        run: |
+      - name: Run tests (Docker Compose)
+        run: docker compose up --build --abort-on-container-exit test
           pytest --cov=src --cov-report=term --cov-report=json:coverage.json
           COVERAGE=$(python -c "import json; print(json.load(open('coverage.json'))['totals']['percent_covered_display'])")
           echo "COVERAGE=$COVERAGE" >> $GITHUB_ENV
