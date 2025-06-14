@@ -13,6 +13,7 @@ from src.output_format_handler import (
     OutputFormat,
     to_markdown,
     truncate_content,
+    to_text,
 )
 from .helpers.errors import _navigate_and_handle_errors, _handle_cloudflare_block
 import asyncio
@@ -35,7 +36,7 @@ def extract_clean_html(html_content, elements_to_remove, url):
     Returns
     -------
     tuple
-        A tuple of ``(title, clean_html, text_content, error)`` where ``error`` is ``None`` when extraction succeeds.
+        A tuple of ``(title, clean_html, text_content, error, soup)`` where ``error`` is ``None`` when extraction succeeds.
     """
 
     soup, target_element = _extract_and_clean_html(
@@ -43,13 +44,13 @@ def extract_clean_html(html_content, elements_to_remove, url):
 
     if not target_element:
         logger.warning(f"Could not find body tag for {url}")
-        return None, None, None, "[ERROR] Could not find body tag in HTML."
+        return None, None, None, "[ERROR] Could not find body tag in HTML.", soup
 
     page_title = soup.title.string.strip() if soup.title and soup.title.string else ""
     clean_html = str(target_element)
     text_content = target_element.get_text(separator="\n", strip=True)
 
-    return page_title, clean_html, text_content, None
+    return page_title, clean_html, text_content, None, soup
 
 
 async def extract_text_from_url(url: str,
@@ -162,7 +163,7 @@ async def extract_text_from_url(url: str,
                 if custom_elements_to_remove:
                     elements_to_remove.extend(custom_elements_to_remove)
 
-                page_title, clean_html, text_content, content_error = extract_clean_html(
+                page_title, clean_html, text_content, content_error, soup = extract_clean_html(
                     html_content, elements_to_remove, page.url)
 
                 if content_error:
@@ -192,9 +193,9 @@ async def extract_text_from_url(url: str,
                     }
 
                 if output_format is OutputFormat.TEXT:
-                    formatted = text_content
+                    formatted = to_text(soup=soup)
                 elif output_format is OutputFormat.HTML:
-                    formatted = clean_html
+                    formatted = str(soup.body) if soup and soup.body else clean_html
                 else:
                     formatted = to_markdown(clean_html)
 

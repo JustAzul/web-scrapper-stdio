@@ -14,28 +14,31 @@ def to_markdown(html: str) -> str:
     return md(html)
 
 
-def to_text(html: str) -> str:
-    soup = BeautifulSoup(html, "html.parser")
+def to_text(html: str = None, soup: BeautifulSoup = None) -> str:
+    if soup is None:
+        soup = BeautifulSoup(html, "html.parser")
     return soup.get_text(separator="\n", strip=True)
 
 
-def to_html(html: str) -> str:
-    soup = BeautifulSoup(html, "html.parser")
+def to_html(html: str = None, soup: BeautifulSoup = None) -> str:
+    if soup is None:
+        soup = BeautifulSoup(html, "html.parser")
     return str(soup)
 
 
-def format_content(html: str, output_format: OutputFormat) -> str:
+def format_content(html: str, output_format: OutputFormat, soup: BeautifulSoup = None) -> str:
     if output_format is OutputFormat.TEXT:
-        return to_text(html)
+        return to_text(html, soup)
     if output_format is OutputFormat.HTML:
-        return to_html(html)
+        return to_html(html, soup)
     return to_markdown(html)
 
 
-def truncate_html(html: str, max_length: int) -> str:
-    if len(html) <= max_length:
+def truncate_html(html: str = None, max_length: int = None, soup: BeautifulSoup = None) -> str:
+    if html is not None and len(html) <= max_length:
         return html
-    soup = BeautifulSoup(html, "html.parser")
+    if soup is None:
+        soup = BeautifulSoup(html, "html.parser")
     text = soup.get_text()
     truncated = text[:max_length]
     return truncated + TRUNCATION_NOTICE
