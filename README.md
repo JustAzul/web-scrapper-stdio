@@ -1,8 +1,7 @@
 # Web Scrapper Service (MCP Stdin/Stdout)
 
 <!-- Badges: auto-generated, update workflow and Gist as needed -->
-<!-- TODO: Replace <gist-id> with your actual Gist ID for the coverage badge below -->
-![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/JustAzul/<gist-id>/raw/web-scrapper-stdio_coverage.json)
+![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/JustAzul/d3ad29ac6775300b8475b9cedd434ae2/raw/web-scrapper-stdio_coverage.json)
 ![Build](https://img.shields.io/github/actions/workflow/status/JustAzul/web-scrapper-stdio/coverage-badge.yml?branch=master)
 ![Build & Test](https://img.shields.io/github/actions/workflow/status/JustAzul/web-scrapper-stdio/build-test.yml?branch=master)
 ![Version](https://img.shields.io/github/v/release/JustAzul/web-scrapper-stdio)
