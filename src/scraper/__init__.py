@@ -60,7 +60,8 @@ async def extract_text_from_url(url: str,
                                 max_length: int | None = None,
                                 user_agent: str | None = None,
                                 wait_for_network_idle: bool = True,
-                                output_format: OutputFormat = OutputFormat.MARKDOWN) -> dict:
+                                output_format: OutputFormat = OutputFormat.MARKDOWN,
+                                click_selector: str | None = None) -> dict:
     """Return primary text content from a web page.
 
     Parameters
@@ -81,6 +82,8 @@ async def extract_text_from_url(url: str,
         Whether to wait for network activity to settle before extracting content.
     output_format : OutputFormat, optional
         Desired output format for the returned content.
+    click_selector : str | None, optional
+        If provided, click the element matching this selector after navigation and before extraction.
 
     Returns
     -------
@@ -126,6 +129,15 @@ async def extract_text_from_url(url: str,
                         "content": None,
                         "error": "[ERROR] <body> tag not found.",
                     }
+
+                # Optional: Click an element if selector is provided
+                if click_selector:
+                    try:
+                        logger.debug(f"Attempting to click selector: {click_selector}")
+                        await page.click(click_selector, timeout=3000)
+                        logger.debug(f"Clicked selector: {click_selector}")
+                    except Exception as e:
+                        logger.warning(f"Could not click selector '{click_selector}': {e}")
 
                 logger.debug(f"Extracting content from: {page.url}")
                 await asyncio.sleep(grace_period_seconds)
