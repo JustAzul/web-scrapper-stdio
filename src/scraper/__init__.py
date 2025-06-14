@@ -97,6 +97,7 @@ async def extract_text_from_url(url: str,
             accept_language = random.choice(LANGUAGES)
 
             browser = None
+            context = None
             try:
                 browser, context, page = await _setup_browser_context(p, ua, viewport, accept_language, timeout_seconds)
 
@@ -222,7 +223,15 @@ async def extract_text_from_url(url: str,
                 }
             finally:
                 if context is not None:
-                    await context.close()
+                    try:
+                        await context.close()
+                    except Exception:
+                        pass
+                if browser is not None:
+                    try:
+                        await browser.close()
+                    except Exception:
+                        pass
 
     except ImportError:
         logger.warning(

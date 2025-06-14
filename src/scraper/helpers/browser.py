@@ -17,16 +17,11 @@ VIEWPORTS = [
 ]
 LANGUAGES = ["en-US,en;q=0.9", "en-GB,en;q=0.8", "en;q=0.7"]
 
-_browser_instance = None
-
-async def get_browser(p):
-    global _browser_instance
-    if _browser_instance is None:
-        _browser_instance = await p.chromium.launch(headless=True)
-    return _browser_instance
+# NOTE: Browser pooling/singleton is only safe in long-lived, single-process, non-test environments.
+# For test and Docker environments, always launch a new browser per call for reliability.
 
 async def _setup_browser_context(p, user_agent, viewport, accept_language, timeout_seconds):
-    browser = await get_browser(p)
+    browser = await p.chromium.launch(headless=True)
     context = await browser.new_context(
         user_agent=user_agent,
         viewport=viewport,
