@@ -80,8 +80,8 @@ jobs:
         uses: schneegans/dynamic-badges-action@v1.6.0
         with:
           auth: ${{ secrets.GIST_SECRET }}
-          gistID: d3ad29ac6775300b8475b9cedd434ae2
-          filename: web-scrapper-stdio_tests.json
+          gistID: 15392260e0e9be9f6f72ae5cf3182743
+          filename: gistfile1.txt
           label: tests
           message: ${{ env.TEST_STATUS }}
           color: ${{ env.COLOR }} 
