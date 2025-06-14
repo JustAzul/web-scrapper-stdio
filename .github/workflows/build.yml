@@ -17,8 +17,8 @@ jobs:
         uses: schneegans/dynamic-badges-action@v1.6.0
         with:
           auth: ${{ secrets.GIST_SECRET }}
-          gistID: d3ad29ac6775300b8475b9cedd434ae2
-          filename: web-scrapper-stdio_build.json
+          gistID: d2497a7eb6d0d1a57a4faea9df7c78a1
+          filename: gistfile1.txt
           label: build
           message: passing
           color: green
@@ -27,8 +27,8 @@ jobs:
         uses: schneegans/dynamic-badges-action@v1.6.0
         with:
           auth: ${{ secrets.GIST_SECRET }}
-          gistID: d3ad29ac6775300b8475b9cedd434ae2
-          filename: web-scrapper-stdio_build.json
+          gistID: d2497a7eb6d0d1a57a4faea9df7c78a1
+          filename: gistfile1.txt
           label: build
           message: failing
           color: red

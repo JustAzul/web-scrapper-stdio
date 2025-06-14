@@ -1,9 +1,9 @@
 # Web Scrapper Service (MCP Stdin/Stdout)
 
 <!-- Badges: auto-generated, update workflow and Gist as needed -->
-![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/JustAzul/d3ad29ac6775300b8475b9cedd434ae2/raw/gistfile1.txt)
-![Build](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/JustAzul/d3ad29ac6775300b8475b9cedd434ae2/raw/web-scrapper-stdio_build.json)
-![Test](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/JustAzul/d3ad29ac6775300b8475b9cedd434ae2/raw/web-scrapper-stdio_tests.json)
+![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/JustAzul/d3ad29ac6775300b8475b9cedd434ae2/raw/50de0495daf2711a203fb68dfb148a20547e910e/gistfile1.txt)
+![Build](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/JustAzul/d2497a7eb6d0d1a57a4faea9df7c78a1/raw/310de0cdeb3dc76aca880247297f871d9a0ee957/gistfile1.txt)
+![Test](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/JustAzul/15392260e0e9be9f6f72ae5cf3182743/raw/6c05ef50ac0e4c04e748f04ef899324e7f44e04d/gistfile1.txt)
 ![Version](https://img.shields.io/github/v/release/JustAzul/web-scrapper-stdio)
 ![License](https://img.shields.io/github/license/JustAzul/web-scrapper-stdio)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
