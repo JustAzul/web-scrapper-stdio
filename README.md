@@ -1,5 +1,18 @@
 # Web Scrapper Service (MCP Stdin/Stdout)
 
+<!-- Badges: auto-generated, update workflow and Gist as needed -->
+![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/<your-github-username>/<gist-id>/raw/web-scrapper-stdio_coverage.json)
+![Build](https://img.shields.io/github/actions/workflow/status/justazul/web-scrapper-stdio/coverage-badge.yml?branch=main)
+![Version](https://img.shields.io/github/v/release/justazul/web-scrapper-stdio)
+![License](https://img.shields.io/github/license/justazul/web-scrapper-stdio)
+![Python](https://img.shields.io/badge/python-3.11%2B-blue)
+![Repo Size](https://img.shields.io/github/repo-size/justazul/web-scrapper-stdio)
+![Last Commit](https://img.shields.io/github/last-commit/justazul/web-scrapper-stdio)
+![Issues](https://img.shields.io/github/issues/justazul/web-scrapper-stdio)
+![PRs](https://img.shields.io/github/issues-pr/justazul/web-scrapper-stdio)
+![PEP8](https://img.shields.io/badge/code%20style-pep8-orange)
+![Docker Pulls](https://img.shields.io/docker/pulls/ghcr.io/justazul/web-scrapper-stdio)
+
 **A Python-based MCP server for robust, headless web scraping—extracts main text content from web pages and outputs Markdown, text, or HTML for seamless AI and automation integration.**
 
 ## Key Features
