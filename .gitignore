@@ -172,5 +172,8 @@ cython_debug/
 .ruff_cache/
 
 # Project specific files
-prd.md 
+prd.md
+
+# Ignore all files and directories under cursor/
+cursor/
 
