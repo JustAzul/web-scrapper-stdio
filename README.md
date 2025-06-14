@@ -2,7 +2,8 @@
 
 <!-- Badges: auto-generated, update workflow and Gist as needed -->
 ![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/JustAzul/d3ad29ac6775300b8475b9cedd434ae2/raw/web-scrapper-stdio_coverage.json)
-![Build & Test](https://img.shields.io/github/actions/workflow/status/JustAzul/web-scrapper-stdio/build-test.yml?branch=master&label=Build%20%26%20Test)
+![Build](https://img.shields.io/github/actions/workflow/status/JustAzul/web-scrapper-stdio/build.yml?branch=master&label=Build)
+![Test](https://img.shields.io/github/actions/workflow/status/JustAzul/web-scrapper-stdio/test.yml?branch=master&label=Test)
 ![Version](https://img.shields.io/github/v/release/JustAzul/web-scrapper-stdio)
 ![License](https://img.shields.io/github/license/JustAzul/web-scrapper-stdio)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
