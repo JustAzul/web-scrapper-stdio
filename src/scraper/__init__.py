@@ -221,8 +221,8 @@ async def extract_text_from_url(url: str,
                     "error": f"[ERROR] An unexpected error occurred: {str(e)}",
                 }
             finally:
-                if browser is not None:
-                    await browser.close()
+                if context is not None:
+                    await context.close()
 
     except ImportError:
         logger.warning(
