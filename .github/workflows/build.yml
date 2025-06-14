@@ -13,11 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-      - name: Install dependencies
         run: |
+      - name: Test Docker build
+        run: docker build --no-cache -t web-scrapper-stdio .
           python -m pip install --upgrade pip
           pip install -r requirements.txt 
