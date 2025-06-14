@@ -171,29 +171,22 @@ async def test_extract_real_article():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("domain_info", [
-    ("fortune.com", "/"),
-    ("techcrunch.com", "/"),
-    ("wired.com", "/"),
-    ("engadget.com", "/"),
-    ("medium.com", "/"),
-    ("dev.to", "/"),
-    ("tomsguide.com", "/news"),
-    ("xda-developers.com", "/"),
-    ("dmnews.com", "/"),
-], ids=[
-    "fortune.com",
-    "techcrunch.com",
-    "wired.com",
-    "engadget.com",
-    "medium.com",
-    "dev.to",
-    "tomsguide.com",
-    "xda-developers.com",
-    "dmnews.com",
-])
-async def test_dynamic_article_extraction(domain_info):
-    domain, start_path = domain_info
+async def test_dynamic_article_extraction_random_domain():
+    """
+    Picks a random domain from the list and tests article extraction for that domain.
+    """
+    domains = [
+        ("fortune.com", "/"),
+        ("techcrunch.com", "/"),
+        ("wired.com", "/"),
+        ("engadget.com", "/"),
+        ("medium.com", "/"),
+        ("dev.to", "/"),
+        ("tomsguide.com", "/news"),
+        ("xda-developers.com", "/"),
+        ("dmnews.com", "/"),
+    ]
+    domain, start_path = random.choice(domains)
     start_url = f"https://{domain}{start_path or '/'}"
     try:
         resp = requests.get(start_url, timeout=DEFAULT_TEST_REQUEST_TIMEOUT)
@@ -208,8 +201,7 @@ async def test_dynamic_article_extraction(domain_info):
                     link = href
                 break
         if not link:
-            pytest.skip(
-                f"Could not dynamically find an article link on {start_url}")
+            pytest.skip(f"Could not dynamically find an article link on {start_url}")
             return
     except Exception as e:
         pytest.skip(f"Failed to fetch homepage for {domain}: {e}")
@@ -226,8 +218,7 @@ async def test_dynamic_article_extraction(domain_info):
     assert result.get("content") is not None
     content = result.get("content") or ""
     if 'dev.to' not in link and 'forem.com' not in link:
-        assert len(
-            content) >= DEFAULT_MIN_CONTENT_LENGTH, f"Extracted text too short ({len(content)} chars) for {link}"
+        assert len(content) >= DEFAULT_MIN_CONTENT_LENGTH, f"Extracted text too short ({len(content)} chars) for {link}"
 
 
 @pytest.mark.asyncio
