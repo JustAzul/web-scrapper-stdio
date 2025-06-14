@@ -224,7 +224,6 @@ You can override most configuration options using environment variables:
 - Cloudflare and similar anti-bot screens are detected and reported as errors.
 - **Limitations:**
   - No REST API or CLI tool (MCP stdio/JSON-RPC only)
-  - Ignores robots.txt
   - No support for non-HTML content (PDF, images, etc.)
   - May not bypass advanced anti-bot protections
   - No authentication or session management for protected pages
@@ -249,16 +248,6 @@ All tests must be run using Docker Compose. Do **not** run tests outside Docker.
   ```sh
   docker compose up --build --abort-on-container-exit test_scrapper
   ```
-
----
-
-## Roadmap
-
-- [ ] Support for additional output formats
-- [ ] REST API or CLI interface
-- [ ] Advanced anti-bot and session management
-- [ ] More configuration options
-- [ ] Improved error reporting and diagnostics
 
 ---
 
