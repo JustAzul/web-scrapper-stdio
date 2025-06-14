@@ -2,8 +2,7 @@
 
 <!-- Badges: auto-generated, update workflow and Gist as needed -->
 ![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/JustAzul/d3ad29ac6775300b8475b9cedd434ae2/raw/web-scrapper-stdio_coverage.json)
-![Build](https://img.shields.io/github/actions/workflow/status/JustAzul/web-scrapper-stdio/coverage-badge.yml?branch=master)
-![Build & Test](https://img.shields.io/github/actions/workflow/status/JustAzul/web-scrapper-stdio/build-test.yml?branch=master)
+![Build & Test](https://img.shields.io/github/actions/workflow/status/JustAzul/web-scrapper-stdio/build-test.yml?branch=master&label=Build%20%26%20Test)
 ![Version](https://img.shields.io/github/v/release/JustAzul/web-scrapper-stdio)
 ![License](https://img.shields.io/github/license/JustAzul/web-scrapper-stdio)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
@@ -12,7 +11,7 @@
 ![Issues](https://img.shields.io/github/issues/JustAzul/web-scrapper-stdio)
 ![PRs](https://img.shields.io/github/issues-pr/JustAzul/web-scrapper-stdio)
 ![PEP8](https://img.shields.io/badge/code%20style-pep8-orange)
-![Docker Pulls](https://img.shields.io/docker/pulls/ghcr.io/justazul/web-scrapper-stdio)
+![GHCR](https://img.shields.io/badge/ghcr.io-JustAzul%2Fweb--scrapper--stdio-blue?logo=github)
 
 **A Python-based MCP server for robust, headless web scraping—extracts main text content from web pages and outputs Markdown, text, or HTML for seamless AI and automation integration.**
 
