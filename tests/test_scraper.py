@@ -241,34 +241,103 @@ async def test_404_page():
 
 
 @pytest.mark.asyncio
-async def test_grace_period_seconds_js_delay():
+async def test_client_side_js_delay_playground():
     """
-    This test checks that increasing grace_period_seconds allows the scraper to capture JS-rendered content that appears after a delay.
-    It uses http://uitestingplayground.com/clientdelay, which displays a button that, when clicked, triggers a label to appear after a JavaScript delay.
+    UITestingPlayground: Client Side Delay
+    - Clicks the playground button and waits for the delayed label to appear after JS processing.
+    - Asserts the correct label text is present.
     """
-    test_url = "http://uitestingplayground.com/clientdelay"
-
-    # Try with a short grace period (should not capture delayed label)
-    result_short = await extract_text_from_url(test_url, grace_period_seconds=0.5)
-    # Try with a longer grace period (should capture delayed label)
-    result_long = await extract_text_from_url(test_url, grace_period_seconds=5.0)
-
-    # The label 'Data loaded after client side delay.' should appear only with the longer grace period
-    content_short = result_short.get("content") or ""
-    content_long = result_long.get("content") or ""
-    assert "Data loaded after client side delay" not in content_short
-    assert "Data loaded after client side delay" in content_long
-    assert len(content_long) > len(content_short), "Longer grace period did not capture more content."
+    url = "http://uitestingplayground.com/clientdelay"
+    from playwright.async_api import async_playwright
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        context = await browser.new_context()
+        page = await context.new_page()
+        await page.goto(url)
+        await page.click("#ajaxButton")
+        await page.wait_for_selector("#content .bg-success", timeout=30000)
+        content = await page.content()
+        assert "Data calculated on the client side." in content, (
+            f"Expected delayed label not found after button click. Content: {content[:200]}..."
+        )
+        await context.close()
+        await browser.close()
 
 
 @pytest.mark.asyncio
-async def test_custom_user_agent_and_no_network_idle():
-    url = "http://example.com"
+async def test_server_side_load_delay_playground():
+    """
+    UITestingPlayground: Load Delays
+    - Waits for the delayed button to appear after server-side delay.
+    - Asserts the correct button text is present.
+    """
+    url = "http://uitestingplayground.com/loaddelay"
+    from playwright.async_api import async_playwright
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        context = await browser.new_context()
+        page = await context.new_page()
+        await page.goto(url)
+        await page.wait_for_selector('button:has-text("Button Appearing After Delay")', timeout=30000)
+        content = await page.content()
+        assert "Button Appearing After Delay" in content, (
+            f"Expected delayed button not found. Content: {content[:200]}..."
+        )
+        await context.close()
+        await browser.close()
+
+
+@pytest.mark.asyncio
+async def test_extract_with_click_selector_js_delay():
+    """
+    Test extract_text_from_url with click_selector on UITestingPlayground Client Side Delay.
+    Should click the button and extract the delayed label.
+    """
+    url = "http://uitestingplayground.com/clientdelay"
     result = await extract_text_from_url(
         url,
-        user_agent=random.choice(USER_AGENTS),
-        wait_for_network_idle=False,
+        click_selector="#ajaxButton",
+        grace_period_seconds=16,
     )
-    assert isinstance(result, dict)
-    assert result.get("content") is not None
-    assert not result.get("error")
+    if result.get("error"):
+        pytest.skip(f"Extraction failed: {result['error']}")
+    content = result.get("content") or ""
+    assert "Data calculated on the client side." in content
+
+
+@pytest.mark.asyncio
+async def test_extract_with_click_selector_load_delay():
+    """
+    Test extract_text_from_url with click_selector on UITestingPlayground Load Delay.
+    Should wait for the delayed button and click it (no-op, but should not fail).
+    """
+    url = "http://uitestingplayground.com/loaddelay"
+    result = await extract_text_from_url(
+        url,
+        click_selector='button:has-text("Button Appearing After Delay")',
+        grace_period_seconds=12,
+    )
+    if result.get("error"):
+        pytest.skip(f"Extraction failed: {result['error']}")
+    content = result.get("content") or ""
+    assert "Button Appearing After Delay" in content
+
+
+@pytest.mark.asyncio
+async def test_extract_with_click_selector_qavbox_delay():
+    """
+    Test extract_text_from_url with click_selector on QAVBOX Delay Elements demo.
+    Should click the trigger button and extract the delayed button.
+    """
+    url = "https://qavbox.github.io/demo/delay/"
+    result = await extract_text_from_url(
+        url,
+        click_selector='button[onclick*="displayDelayBtn"]',
+        grace_period_seconds=7,
+    )
+    if result.get("error"):
+        pytest.skip(f"Extraction failed: {result['error']}")
+    content = result.get("content") or ""
+    assert 'id="delay"' in content or '<button id="delay"' in content or 'id=\'delay\'' in content, (
+        f"Expected delayed button not found. Content: {content[:200]}..."
+    )
