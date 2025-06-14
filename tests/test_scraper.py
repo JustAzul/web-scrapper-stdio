@@ -253,24 +253,21 @@ async def test_404_page():
 async def test_grace_period_seconds_js_delay():
     """
     This test checks that increasing grace_period_seconds allows the scraper to capture JS-rendered content that appears after a delay.
-    It uses a public test page that adds content after a JS timeout. If no such page is available, this test will be skipped.
+    It uses http://uitestingplayground.com/clientdelay, which displays a button that, when clicked, triggers a label to appear after a JavaScript delay.
     """
-    # Example public test page that adds content after 2 seconds via JS
-    # This is a placeholder; ideally use a real JS-delay demo page
-    test_url = "https://httpbin.org/delay/2"
+    test_url = "http://uitestingplayground.com/clientdelay"
 
-    # Try with a short grace period (should not capture delayed content)
+    # Try with a short grace period (should not capture delayed label)
     result_short = await extract_text_from_url(test_url, grace_period_seconds=0.5)
-    # Try with a longer grace period (should capture delayed content)
-    result_long = await extract_text_from_url(test_url, grace_period_seconds=3.0)
+    # Try with a longer grace period (should capture delayed label)
+    result_long = await extract_text_from_url(test_url, grace_period_seconds=5.0)
 
-    # If the page does not actually use JS to delay content, skip the test
-    if result_short.get("content") == result_long.get("content"):
-        pytest.skip(
-            "Test page does not have JS-delayed content or is not suitable for this test.")
-
-    # The longer grace period should yield more content
-    assert len(result_long.get("content") or "") > len(result_short.get("content") or ""), "Longer grace period did not capture more content."
+    # The label 'Data loaded after client side delay.' should appear only with the longer grace period
+    content_short = result_short.get("content") or ""
+    content_long = result_long.get("content") or ""
+    assert "Data loaded after client side delay" not in content_short
+    assert "Data loaded after client side delay" in content_long
+    assert len(content_long) > len(content_short), "Longer grace period did not capture more content."
 
 
 @pytest.mark.asyncio
