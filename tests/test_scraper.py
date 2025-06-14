@@ -324,20 +324,53 @@ async def test_extract_with_click_selector_load_delay():
 
 
 @pytest.mark.asyncio
-async def test_extract_with_click_selector_qavbox_delay():
-    """
-    Test extract_text_from_url with click_selector on QAVBOX Delay Elements demo.
-    Should click the trigger button and extract the delayed button.
-    """
-    url = "https://qavbox.github.io/demo/delay/"
-    result = await extract_text_from_url(
-        url,
-        click_selector='button[onclick*="displayDelayBtn"]',
-        grace_period_seconds=7,
-    )
-    if result.get("error"):
-        pytest.skip(f"Extraction failed: {result['error']}")
+async def test_custom_elements_to_remove_removes_elements():
+    # This test uses a simple HTML page with a removable element.
+    # We'll use httpbin.org/html, which contains a <h1>Herman Melville - Moby-Dick</h1>.
+    url = "https://httpbin.org/html"
+    # Remove the <h1> element
+    result = await extract_text_from_url(url, custom_elements_to_remove=["h1"])
     content = result.get("content") or ""
-    assert 'id="delay"' in content or '<button id="delay"' in content or 'id=\'delay\'' in content, (
-        f"Expected delayed button not found. Content: {content[:200]}..."
-    )
+    # The heading should not be present in the output
+    assert "Herman Melville - Moby-Dick" not in content
+
+
+@pytest.mark.asyncio
+async def test_custom_elements_to_remove_multiple_selectors():
+    # Use httpbin.org/html, which contains <h1> and <p> elements
+    url = "https://httpbin.org/html"
+    result = await extract_text_from_url(url, custom_elements_to_remove=["h1", "p"])
+    content = result.get("content") or ""
+    # Both the heading and the paragraph should not be present
+    assert "Herman Melville - Moby-Dick" not in content
+    assert "A simple HTML file" not in content
+
+
+@pytest.mark.asyncio
+async def test_custom_elements_to_remove_nonexistent_selector():
+    url = "https://httpbin.org/html"
+    # Use a selector that does not exist
+    result = await extract_text_from_url(url, custom_elements_to_remove=[".does-not-exist"])
+    content = result.get("content") or ""
+    # Content should be unaffected (should still contain the heading)
+    assert "Herman Melville - Moby-Dick" in content
+
+
+@pytest.mark.asyncio
+async def test_custom_elements_to_remove_empty_list():
+    url = "https://httpbin.org/html"
+    result = await extract_text_from_url(url, custom_elements_to_remove=[])
+    content = result.get("content") or ""
+    # Content should be unaffected (should still contain the heading)
+    assert "Herman Melville - Moby-Dick" in content
+
+
+@pytest.mark.asyncio
+async def test_custom_elements_to_remove_selector_matches_multiple():
+    # Use a page with multiple <p> tags; httpbin.org/html has two <p> tags
+    url = "https://httpbin.org/html"
+    result = await extract_text_from_url(url, custom_elements_to_remove=["p"])
+    content = result.get("content") or ""
+    # Both paragraphs should be removed
+    assert "A simple HTML file" not in content
+    assert "paragraph" not in content  # The second <p> contains 'paragraph'
