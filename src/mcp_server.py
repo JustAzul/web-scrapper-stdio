@@ -11,6 +11,7 @@ import asyncio
 from pydantic import BaseModel, Field
 from src.logger import Logger
 from src.config import DEFAULT_TIMEOUT_SECONDS
+from src.output_format_handler import OutputFormat
 
 # Use absolute imports instead of relative imports
 try:
@@ -53,6 +54,10 @@ class ScrapeArgs(BaseModel):
         default=True,
         description="Whether to wait for network activity to settle before extracting content."
     )
+    output_format: OutputFormat = Field(
+        default=OutputFormat.MARKDOWN,
+        description="Desired output format: markdown, text, or html."
+    )
 
 
 async def mcp_extract_text_map(url: str, *args, **kwargs) -> dict:
@@ -70,7 +75,7 @@ async def mcp_extract_text_map(url: str, *args, **kwargs) -> dict:
         }
     return {
         "status": "success",
-        "extracted_text": result.get("markdown_content"),
+        "extracted_text": result.get("content"),
         "final_url": result.get("final_url", url),
         "title": result.get("title"),
         "error_message": None
@@ -87,7 +92,7 @@ async def serve(custom_user_agent: str | None = None):
         return [
             Tool(
                 name="scrape_web",
-                description="""Scrapes a webpage and extracts its main textual content as markdown.\nThis tool uses a headless browser to render the page with full JavaScript support,\nmaking it suitable for modern web applications.""",
+                description="Scrapes a webpage and extracts its main content",
                 inputSchema=ScrapeArgs.model_json_schema(),
             )
         ]
@@ -98,13 +103,18 @@ async def serve(custom_user_agent: str | None = None):
         return [
             Prompt(
                 name="scrape",
-                description="Scrape a webpage and extract its main content as markdown",
+                description="Scrape a webpage and extract its main content",
                 arguments=[
                     PromptArgument(
                         name="url",
                         description="URL to scrape",
-                        required=True
-                    )
+                        required=True,
+                    ),
+                    PromptArgument(
+                        name="output_format",
+                        description="Desired output format: markdown, text, or html",
+                        required=False,
+                    ),
                 ],
             )
         ]
@@ -138,6 +148,7 @@ async def serve(custom_user_agent: str | None = None):
             max_length=args.max_length,
             user_agent=args.user_agent,
             wait_for_network_idle=args.wait_for_network_idle,
+            output_format=args.output_format,
         )
 
         if result.get("error"):
@@ -148,14 +159,7 @@ async def serve(custom_user_agent: str | None = None):
                 message=f"Failed to scrape {url}: {result['error']}"
             ))
 
-        content = result.get("markdown_content")
-
-        # Truncate if necessary
-        if content and args.max_length is not None and len(content) > args.max_length:
-            logger.info(
-                f"Truncating content from {len(content)} to {args.max_length} characters")
-            content = content[:args.max_length] + \
-                "\n\n[Content truncated due to length]"
+        content = result.get("content")
 
         logger.info(
             f"Successfully scraped {url}, returning {len(content) if content else 0} characters")
@@ -178,7 +182,8 @@ async def serve(custom_user_agent: str | None = None):
 
         url = arguments["url"]
         logger.info(f"Scraping URL for prompt: {url}")
-        result = await extract_text_from_url(url)
+        output_format = arguments.get("output_format", OutputFormat.MARKDOWN)
+        result = await extract_text_from_url(url, output_format=output_format)
 
         if result.get("error"):
             logger.error(
@@ -196,7 +201,7 @@ async def serve(custom_user_agent: str | None = None):
                 ],
             )
 
-        content = result.get("markdown_content")
+        content = result.get("content")
 
         logger.info(
             f"Successfully scraped {url} for prompt, returning {len(content) if content else 0} characters")

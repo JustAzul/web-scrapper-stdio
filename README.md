@@ -1,6 +1,6 @@
-## Web Scrapper Service (MCP Stdin/Stdout, Markdown Output)
+## Web Scrapper Service (MCP Stdin/Stdout)
 
-This project is a Python-based web scrapper that extracts primary text content from web pages, outputting Markdown via a simple stdio/JSON-RPC interface. It is designed as an MCP (Model Context Protocol) server for seamless AI model interaction.
+This project is a Python-based web scrapper that extracts primary text content from web pages, outputting Markdown by default via a simple stdio/JSON-RPC interface. It is designed as an MCP (Model Context Protocol) server for seamless AI model interaction.
 
 - **Core scraping logic:** `src/scraper/`
 - **MCP server entrypoint:** `src/mcp_server.py`
@@ -31,6 +31,7 @@ This web scrapper is used as an MCP (Model Context Protocol) tool, allowing it t
 - `wait_for_network_idle` (boolean, optional): Wait for network activity to settle before scraping (default: true)
 - `custom_elements_to_remove` (list, optional): Additional HTML elements to remove
 - `grace_period_seconds` (float, optional): Short grace period to allow JS to finish rendering (in seconds, default: 2.0)
+- `output_format` (string, optional): `markdown`, `text`, or `html` (default: `markdown`)
 
 **Returns:**
 - Markdown formatted content extracted from the webpage, as a string
@@ -40,12 +41,13 @@ This web scrapper is used as an MCP (Model Context Protocol) tool, allowing it t
 
 **Parameters:**
 - `url` (string, required): The URL to scrape
+- `output_format` (string, optional): `markdown`, `text`, or `html` (default: `markdown`)
 
 **Returns:**
-- Markdown formatted content extracted from the webpage, as a string
+- Content extracted from the webpage in the chosen format
 
 **Note:**
-- Output is always Markdown for easy downstream use.
+- Markdown is returned by default but text or HTML can be requested via `output_format`.
 - The scrapper does not check robots.txt and will attempt to fetch any URL provided.
 - No REST API or CLI tool is included; this is a pure MCP stdio/JSON-RPC tool.
 - The scrapper always extracts the full `<body>` content of web pages, applying only essential noise removal (removing script, style, nav, footer, aside, header, and similar non-content tags). The scrapper detects and handles Cloudflare challenge screens, returning a specific error string.

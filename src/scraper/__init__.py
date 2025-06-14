@@ -8,15 +8,20 @@ from src.logger import Logger
 from .helpers.rate_limiting import get_domain_from_url, apply_rate_limiting
 from .helpers.browser import _setup_browser_context, USER_AGENTS, VIEWPORTS, LANGUAGES
 from .helpers.content_selectors import _wait_for_content_stabilization
-from .helpers.html_utils import _extract_and_clean_html, _extract_markdown_and_text, _is_content_too_short
+from .helpers.html_utils import _extract_and_clean_html, _is_content_too_short
+from src.output_format_handler import (
+    OutputFormat,
+    to_markdown,
+    truncate_content,
+)
 from .helpers.errors import _navigate_and_handle_errors, _handle_cloudflare_block
 import asyncio
 
 logger = Logger(__name__)
 
 
-def extract_and_format_content(html_content, elements_to_remove, url):
-    """Clean and parse HTML and return the key content.
+def extract_clean_html(html_content, elements_to_remove, url):
+    """Clean and parse HTML and return sanitized body HTML and plain text.
 
     Parameters
     ----------
@@ -30,8 +35,7 @@ def extract_and_format_content(html_content, elements_to_remove, url):
     Returns
     -------
     tuple
-        A tuple of ``(title, markdown, text, error)`` where ``error`` is ``None``
-        when extraction succeeds.
+        A tuple of ``(title, clean_html, text_content, error)`` where ``error`` is ``None`` when extraction succeeds.
     """
 
     soup, target_element = _extract_and_clean_html(
@@ -41,10 +45,11 @@ def extract_and_format_content(html_content, elements_to_remove, url):
         logger.warning(f"Could not find body tag for {url}")
         return None, None, None, "[ERROR] Could not find body tag in HTML."
 
-    markdown_content, text = _extract_markdown_and_text(target_element)
     page_title = soup.title.string.strip() if soup.title and soup.title.string else ""
+    clean_html = str(target_element)
+    text_content = target_element.get_text(separator="\n", strip=True)
 
-    return page_title, markdown_content, text, None
+    return page_title, clean_html, text_content, None
 
 
 async def extract_text_from_url(url: str,
@@ -53,7 +58,8 @@ async def extract_text_from_url(url: str,
                                 grace_period_seconds: float = 2.0,
                                 max_length: int | None = None,
                                 user_agent: str | None = None,
-                                wait_for_network_idle: bool = True) -> dict:
+                                wait_for_network_idle: bool = True,
+                                output_format: OutputFormat = OutputFormat.MARKDOWN) -> dict:
     """Return primary text content from a web page.
 
     Parameters
@@ -72,11 +78,13 @@ async def extract_text_from_url(url: str,
         Custom User-Agent string. A random one is used if not provided.
     wait_for_network_idle : bool, optional
         Whether to wait for network activity to settle before extracting content.
+    output_format : OutputFormat, optional
+        Desired output format for the returned content.
 
     Returns
     -------
     dict
-        Dictionary with ``title``, ``final_url``, ``markdown_content`` and an
+        Dictionary with ``title``, ``final_url``, ``content`` and an
         ``error`` message if one occurred.
     """
     timeout_seconds = custom_timeout if custom_timeout is not None else DEFAULT_TIMEOUT_SECONDS
@@ -99,8 +107,8 @@ async def extract_text_from_url(url: str,
                     return {
                         "title": None,
                         "final_url": url,
-                        "markdown_content": None,
-                        "error": nav_error
+                        "content": None,
+                        "error": nav_error,
                     }
 
                 logger.debug(f"Waiting for content to stabilize on {page.url}")
@@ -113,8 +121,8 @@ async def extract_text_from_url(url: str,
                     return {
                         "title": None,
                         "final_url": page.url,
-                        "markdown_content": None,
-                        "error": "[ERROR] <body> tag not found."
+                        "content": None,
+                        "error": "[ERROR] <body> tag not found.",
                     }
 
                 logger.debug(f"Extracting content from: {page.url}")
@@ -128,8 +136,8 @@ async def extract_text_from_url(url: str,
                     return {
                         "title": None,
                         "final_url": page.url,
-                        "markdown_content": None,
-                        "error": cf_error
+                        "content": None,
+                        "error": cf_error,
                     }
 
                 default_elements_to_remove = [
@@ -154,43 +162,53 @@ async def extract_text_from_url(url: str,
                 if custom_elements_to_remove:
                     elements_to_remove.extend(custom_elements_to_remove)
 
-                page_title, markdown_content, text, content_error = extract_and_format_content(
+                page_title, clean_html, text_content, content_error = extract_clean_html(
                     html_content, elements_to_remove, page.url)
 
                 if content_error:
                     return {
                         "title": None,
                         "final_url": page.url,
-                        "markdown_content": None,
-                        "error": content_error
+                        "content": None,
+                        "error": content_error,
                     }
 
                 original_domain = get_domain_from_url(url)
-                min_content_length = DEFAULT_MIN_CONTENT_LENGTH_SEARCH_APP if original_domain and 'search.app' in original_domain else DEFAULT_MIN_CONTENT_LENGTH
+                min_content_length = (
+                    DEFAULT_MIN_CONTENT_LENGTH_SEARCH_APP
+                    if original_domain and "search.app" in original_domain
+                    else DEFAULT_MIN_CONTENT_LENGTH
+                )
 
-                if _is_content_too_short(text, min_content_length):
+                if _is_content_too_short(text_content, min_content_length):
                     logger.warning(
-                        f"No significant text content extracted (length < {min_content_length}) at {page.url}")
+                        f"No significant text content extracted (length < {min_content_length}) at {page.url}"
+                    )
                     return {
                         "title": page_title,
                         "final_url": page.url,
-                        "markdown_content": None,
-                        "error": f"[ERROR] No significant text content extracted (too short, less than {min_content_length} characters)."
+                        "content": None,
+                        "error": f"[ERROR] No significant text content extracted (too short, less than {min_content_length} characters).",
                     }
+
+                if output_format is OutputFormat.TEXT:
+                    formatted = text_content
+                elif output_format is OutputFormat.HTML:
+                    formatted = clean_html
                 else:
-                    if max_length is not None:
-                        text = text[:max_length]
-                        markdown_content = markdown_content[:max_length]
+                    formatted = to_markdown(clean_html)
 
-                    logger.debug(
-                        f"Successfully extracted text from {page.url}")
+                if max_length is not None:
+                    formatted = truncate_content(formatted, max_length)
 
-                    return {
-                        "title": page_title,
-                        "final_url": page.url,
-                        "markdown_content": markdown_content,
-                        "error": None
-                    }
+                logger.debug(f"Successfully extracted text from {page.url}")
+
+                return {
+                    "title": page_title,
+                    "final_url": page.url,
+                    "content": formatted,
+                    "error": None,
+                }
 
             except Exception as e:
                 logger.warning(
@@ -198,8 +216,8 @@ async def extract_text_from_url(url: str,
                 return {
                     "title": None,
                     "final_url": url,
-                    "markdown_content": None,
-                    "error": f"[ERROR] An unexpected error occurred: {str(e)}"
+                    "content": None,
+                    "error": f"[ERROR] An unexpected error occurred: {str(e)}",
                 }
             finally:
                 if browser is not None:
@@ -212,8 +230,8 @@ async def extract_text_from_url(url: str,
         return {
             "title": None,
             "final_url": url,
-            "markdown_content": None,
-            "error": "[ERROR] Playwright installation missing."
+            "content": None,
+            "error": "[ERROR] Playwright installation missing.",
         }
 
     except Exception as e:
@@ -223,13 +241,13 @@ async def extract_text_from_url(url: str,
         return {
             "title": None,
             "final_url": url,
-            "markdown_content": None,
-            "error": f"[ERROR] An unexpected error occurred: {str(e)}"
+            "content": None,
+            "error": f"[ERROR] An unexpected error occurred: {str(e)}",
         }
 
     return {
         "title": None,
         "final_url": url,
-        "markdown_content": None,
-        "error": "[ERROR] Unknown error occurred."
+        "content": None,
+        "error": "[ERROR] Unknown error occurred.",
     }
