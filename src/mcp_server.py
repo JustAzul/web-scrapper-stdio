@@ -183,6 +183,12 @@ async def serve(custom_user_agent: str | None = None):
         url = arguments["url"]
         logger.info(f"Scraping URL for prompt: {url}")
         output_format = arguments.get("output_format", OutputFormat.MARKDOWN)
+        if isinstance(output_format, str):
+            try:
+                output_format = OutputFormat(output_format)
+            except ValueError:
+                logger.error(f"Invalid output_format: {output_format}, defaulting to MARKDOWN")
+                output_format = OutputFormat.MARKDOWN
         result = await extract_text_from_url(url, output_format=output_format)
 
         if result.get("error"):
