@@ -74,18 +74,6 @@ Add to your Claude Desktop MCP config (typically `claude_desktop_config.json`):
   }
 }
 ```
-Or, use the [MCP Installer](https://github.com/anaisbetts/mcp-installer) for interactive installation:
-```json
-{
-  "mcpServers": {
-    "mcp-installer": {
-      "command": "npx",
-      "args": ["@anaisbetts/mcp-installer"]
-    }
-  }
-}
-```
-
 ### Continue (VSCode/JetBrains Plugin)
 Add to your `continue.config.json` or via the Continue plugin MCP settings:
 ```json
