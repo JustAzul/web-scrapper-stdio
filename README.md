@@ -32,7 +32,7 @@ docker run -i --rm ghcr.io/justazul/web-scrapper-stdio
 ```
 
 ### One-Click Installation (Cursor IDE)
-[![Add to Cursor](https://docs.cursor.com/add-to-cursor.svg)](https://docs.cursor.com/add-to-cursor?server=web-scrapper-stdio)
+[![Add to Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=web-scrapper-stdio&config=eyJjb21tYW5kIjoiZG9ja2VyIHJ1biAtaSAtLXJtIGdoY3IuaW8vanVzdGF6dWwvd2ViLXNjcmFwcGVyLXN0ZGlvOmxhdGVzdCJ9)
 
 Or, use the [Cursor MCP Installer](https://www.npmjs.com/package/cursor-mcp-installer-free) for interactive installation of any MCP server:
 ```json
