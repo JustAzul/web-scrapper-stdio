@@ -230,9 +230,3 @@ Contributions are welcome! Please open issues or pull requests for bug fixes, fe
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
-
----
-
-## Contact & Support
-
-For questions, support, or feedback, please open an issue on GitHub or contact the maintainer.
