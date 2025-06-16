@@ -1,13 +1,12 @@
 # Web Scrapper Service (MCP Stdin/Stdout)
 
 <!-- Badges: auto-generated, update workflow and Gist as needed -->
-![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/JustAzul/d3ad29ac6775300b8475b9cedd434ae2/raw/50de0495daf2711a203fb68dfb148a20547e910e/gistfile1.txt)
 ![Build](https://img.shields.io/github/actions/workflow/status/JustAzul/web-scrapper-stdio/.github%2Fworkflows%2Fbuild.yml)
 ![Test](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/JustAzul/15392260e0e9be9f6f72ae5cf3182743/raw/6c05ef50ac0e4c04e748f04ef899324e7f44e04d/gistfile1.txt)
+![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/JustAzul/d3ad29ac6775300b8475b9cedd434ae2/raw/50de0495daf2711a203fb68dfb148a20547e910e/gistfile1.txt)
 ![Version](https://img.shields.io/github/v/release/JustAzul/web-scrapper-stdio)
 ![License](https://img.shields.io/github/license/JustAzul/web-scrapper-stdio)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
-![Issues](https://img.shields.io/github/issues/JustAzul/web-scrapper-stdio)
 ![PEP8](https://img.shields.io/badge/code%20style-pep8-orange)
 ![GHCR](https://img.shields.io/badge/ghcr.io-JustAzul%2Fweb--scrapper--stdio-blue?logo=github)
 
