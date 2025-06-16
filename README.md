@@ -3,7 +3,6 @@
 <!-- Badges: auto-generated, update workflow and Gist as needed -->
 ![Build](https://img.shields.io/github/actions/workflow/status/JustAzul/web-scrapper-stdio/.github%2Fworkflows%2Fbuild.yml?branch=master)
 ![Test](https://img.shields.io/github/actions/workflow/status/JustAzul/web-scrapper-stdio/.github%2Fworkflows%2Ftest.yml?branch=master&label=tests)
-![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/JustAzul/d3ad29ac6775300b8475b9cedd434ae2/raw/50de0495daf2711a203fb68dfb148a20547e910e/gistfile1.txt)
 ![Version](https://img.shields.io/github/v/release/JustAzul/web-scrapper-stdio)
 ![License](https://img.shields.io/github/license/JustAzul/web-scrapper-stdio)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
