@@ -20,6 +20,7 @@ LANGUAGES = ["en-US,en;q=0.9", "en-GB,en;q=0.8", "en;q=0.7"]
 # NOTE: Browser pooling/singleton is only safe in long-lived, single-process, non-test environments.
 # For test and Docker environments, always launch a new browser per call for reliability.
 
+
 async def _setup_browser_context(p, user_agent, viewport, accept_language, timeout_seconds):
     browser = await p.chromium.launch(headless=True)
     context = await browser.new_context(

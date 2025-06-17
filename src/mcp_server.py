@@ -14,13 +14,7 @@ from src.config import DEFAULT_TIMEOUT_SECONDS
 from src.output_format_handler import OutputFormat
 from src.utils import filter_none_values
 
-# Use absolute imports instead of relative imports
-try:
-    from src.scraper import extract_text_from_url
-except ImportError:
-    # Try alternative import paths
-    import scraper
-    extract_text_from_url = scraper.extract_text_from_url
+from src.scraper import extract_text_from_url
 
 
 logger = Logger(__name__)
@@ -92,8 +86,8 @@ async def mcp_extract_text_map(url: str, *args, **kwargs) -> dict:
 
 
 async def serve(custom_user_agent: str | None = None):
-    logger.info("Starting MCP web scrapper server (stdio mode)")
-    server = Server("mcp-web-scrapper")
+    logger.info("Starting MCP web scraper server (stdio mode)")
+    server = Server("mcp-web-scraper")
 
     @server.list_tools()
     async def list_tools() -> list[Tool]:
@@ -200,7 +194,8 @@ async def serve(custom_user_agent: str | None = None):
             try:
                 output_format = OutputFormat(output_format)
             except ValueError:
-                logger.error(f"Invalid output_format: {output_format}, defaulting to MARKDOWN")
+                logger.error(
+                    f"Invalid output_format: {output_format}, defaulting to MARKDOWN")
                 output_format = OutputFormat.MARKDOWN
         result = await extract_text_from_url(url, output_format=output_format)
 

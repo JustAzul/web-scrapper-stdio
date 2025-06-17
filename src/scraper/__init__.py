@@ -133,11 +133,13 @@ async def extract_text_from_url(url: str,
                 # Optional: Click an element if selector is provided
                 if click_selector:
                     try:
-                        logger.debug(f"Attempting to click selector: {click_selector}")
+                        logger.debug(
+                            f"Attempting to click selector: {click_selector}")
                         await page.click(click_selector, timeout=3000)
                         logger.debug(f"Clicked selector: {click_selector}")
                     except Exception as e:
-                        logger.warning(f"Could not click selector '{click_selector}': {e}")
+                        logger.warning(
+                            f"Could not click selector '{click_selector}': {e}")
 
                 logger.debug(f"Extracting content from: {page.url}")
                 await asyncio.sleep(grace_period_seconds)
@@ -208,7 +210,8 @@ async def extract_text_from_url(url: str,
                 if output_format is OutputFormat.TEXT:
                     formatted = to_text(soup=soup)
                 elif output_format is OutputFormat.HTML:
-                    formatted = str(soup.body) if soup and soup.body else clean_html
+                    formatted = str(
+                        soup.body) if soup and soup.body else clean_html
                 else:
                     formatted = to_markdown(clean_html)
 
