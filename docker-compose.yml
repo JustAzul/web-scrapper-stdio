@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: web-scrapper-tester
+    container_name: web-scraper-tester
     environment:
       - PYTEST_ADDOPTS=--disable-warnings
       - PYTHONUNBUFFERED=1
@@ -15,16 +15,17 @@ services:
     shm_size: '2gb'
     command: >
       sh -c "
-        pip install -r requirements.txt;
         echo 'Running all tests...';
         pytest -v -rs tests
       "
+    stop_signal: SIGINT
+    init: true
 
   test_mcp:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: web-scrapper-tester-mcp
+    container_name: web-scraper-tester-mcp
     environment:
       - PYTEST_ADDOPTS=--disable-warnings
       - PYTHONUNBUFFERED=1
@@ -34,16 +35,17 @@ services:
     shm_size: '2gb'
     command: >
       sh -c "
-        pip install -r requirements.txt;
         echo 'Running only mcp_server tests...';
         pytest -v -rs tests/test_mcp_server.py
       "
+    stop_signal: SIGINT
+    init: true
 
-  test_scrapper:
+  test_scraper:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: web-scrapper-tester-scrapper
+    container_name: web-scraper-tester-scraper
     environment:
       - PYTEST_ADDOPTS=--disable-warnings
       - PYTHONUNBUFFERED=1
@@ -53,7 +55,28 @@ services:
     shm_size: '2gb'
     command: >
       sh -c "
-        pip install -r requirements.txt;
-        echo 'Running only scrapper tests...';
+        echo 'Running only scraper tests...';
         pytest -v -rs tests/test_scraper.py
       "
+    stop_signal: SIGINT
+    init: true
+
+  test_chunked:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: web-scraper-tester-chunked
+    environment:
+      - PYTEST_ADDOPTS=--disable-warnings
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./tests:/app/tests
+      - ./src:/app/src
+    shm_size: '2gb'
+    command: >
+      sh -c "
+        echo 'Running chunked processing tests...';
+        pytest -v -rs tests/test_chunked_processing.py tests/test_integration_chunked.py
+      "
+    stop_signal: SIGINT
+    init: true

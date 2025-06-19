@@ -9,6 +9,7 @@ from .helpers.rate_limiting import get_domain_from_url, apply_rate_limiting
 from .helpers.browser import _setup_browser_context, USER_AGENTS, VIEWPORTS, LANGUAGES
 from .helpers.content_selectors import _wait_for_content_stabilization
 from .helpers.html_utils import _extract_and_clean_html, _is_content_too_short
+from .helpers.chunked_processor import extract_clean_html_optimized, ChunkedHTMLProcessor
 from src.output_format_handler import (
     OutputFormat,
     to_markdown,
@@ -24,6 +25,10 @@ logger = Logger(__name__)
 def extract_clean_html(html_content, elements_to_remove, url):
     """Clean and parse HTML and return sanitized body HTML and plain text.
 
+    This function now automatically uses memory-efficient chunked processing
+    for large documents (>100KB) while maintaining backward compatibility
+    for smaller documents.
+
     Parameters
     ----------
     html_content : str
@@ -38,19 +43,43 @@ def extract_clean_html(html_content, elements_to_remove, url):
     tuple
         A tuple of ``(title, clean_html, text_content, error, soup)`` where ``error`` is ``None`` when extraction succeeds.
     """
+    try:
+        # Use the optimized chunked processor that automatically decides
+        # between chunked and original processing based on content size
+        page_title, clean_html, text_content, error, soup = extract_clean_html_optimized(
+            html_content, elements_to_remove, url
+        )
+        
+        # Maintain backward compatibility by handling the same error cases
+        if error:
+            return None, None, None, error, soup
+        
+        if not clean_html and not text_content:
+            logger.warning(f"Could not find body tag for {url}")
+            return None, None, None, "[ERROR] Could not find body tag in HTML.", soup
+        
+        return page_title, clean_html, text_content, None, soup
+    
+    except Exception as e:
+        # Fallback to original method if chunked processing fails
+        logger.warning(f"Chunked processing failed for {url}, falling back to original method: {e}")
+        
+        try:
+            soup, target_element = _extract_and_clean_html(html_content, elements_to_remove)
 
-    soup, target_element = _extract_and_clean_html(
-        html_content, elements_to_remove)
+            if not target_element:
+                logger.warning(f"Could not find body tag for {url}")
+                return None, None, None, "[ERROR] Could not find body tag in HTML.", soup
 
-    if not target_element:
-        logger.warning(f"Could not find body tag for {url}")
-        return None, None, None, "[ERROR] Could not find body tag in HTML.", soup
+            page_title = soup.title.string.strip() if soup.title and soup.title.string else ""
+            clean_html = str(target_element)
+            text_content = target_element.get_text(separator="\n", strip=True)
 
-    page_title = soup.title.string.strip() if soup.title and soup.title.string else ""
-    clean_html = str(target_element)
-    text_content = target_element.get_text(separator="\n", strip=True)
-
-    return page_title, clean_html, text_content, None, soup
+            return page_title, clean_html, text_content, None, soup
+        
+        except Exception as fallback_error:
+            logger.error(f"Both chunked and original processing failed for {url}: {fallback_error}")
+            return None, None, None, f"[ERROR] HTML processing failed: {str(fallback_error)}", None
 
 
 async def extract_text_from_url(url: str,
