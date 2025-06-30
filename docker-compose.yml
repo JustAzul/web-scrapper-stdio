@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   test:
     build:
@@ -13,19 +11,51 @@ services:
       - ./tests:/app/tests
       - ./src:/app/src
     shm_size: '2gb'
+    ipc: host
+    cap_add:
+      - SYS_ADMIN
+    init: true
     command: >
       sh -c "
-        echo 'Running all tests...';
+        echo 'Running tests (excluding slow external tests)...';
+        pytest -v -rs -m 'not slow' tests
+      "
+    stop_signal: SIGINT
+
+  test-all:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: web-scraper-tester-all
+    environment:
+      - PYTEST_ADDOPTS=--disable-warnings
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./tests:/app/tests
+      - ./src:/app/src
+    shm_size: '2gb'
+    ipc: host
+    cap_add:
+      - SYS_ADMIN
+    init: true
+    security_opt:
+      - seccomp:unconfined
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    command: >
+      sh -c "
+        echo 'Running ALL tests (including slow external tests)...';
         pytest -v -rs tests
       "
     stop_signal: SIGINT
-    init: true
 
-  test_mcp:
+  test-unit:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: web-scraper-tester-mcp
+    container_name: web-scraper-tester-unit
     environment:
       - PYTEST_ADDOPTS=--disable-warnings
       - PYTHONUNBUFFERED=1
@@ -33,19 +63,22 @@ services:
       - ./tests:/app/tests
       - ./src:/app/src
     shm_size: '2gb'
+    ipc: host
+    cap_add:
+      - SYS_ADMIN
+    init: true
     command: >
       sh -c "
-        echo 'Running only mcp_server tests...';
-        pytest -v -rs tests/test_mcp_server.py
-      "
+        echo 'Running UNIT tests...';
+        pytest tests/unit/ --tb=short -v
+        "
     stop_signal: SIGINT
-    init: true
 
-  test_scraper:
+  test-integration:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: web-scraper-tester-scraper
+    container_name: web-scraper-tester-integration
     environment:
       - PYTEST_ADDOPTS=--disable-warnings
       - PYTHONUNBUFFERED=1
@@ -53,30 +86,13 @@ services:
       - ./tests:/app/tests
       - ./src:/app/src
     shm_size: '2gb'
+    ipc: host
+    cap_add:
+      - SYS_ADMIN
+    init: true
     command: >
       sh -c "
-        echo 'Running only scraper tests...';
-        pytest -v -rs tests/test_scraper.py
+        echo 'Running INTEGRATION tests...';
+        pytest -v -rs -m 'integration and not slow' tests/integration/
       "
     stop_signal: SIGINT
-    init: true
-
-  test_chunked:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: web-scraper-tester-chunked
-    environment:
-      - PYTEST_ADDOPTS=--disable-warnings
-      - PYTHONUNBUFFERED=1
-    volumes:
-      - ./tests:/app/tests
-      - ./src:/app/src
-    shm_size: '2gb'
-    command: >
-      sh -c "
-        echo 'Running chunked processing tests...';
-        pytest -v -rs tests/test_chunked_processing.py tests/test_integration_chunked.py
-      "
-    stop_signal: SIGINT
-    init: true

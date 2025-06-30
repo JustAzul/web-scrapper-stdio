@@ -22,17 +22,17 @@ jobs:
           name: mcp-test-results
           path: .
 
-  test_scrapper:
+  test_scraper:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Run scrapper tests (Docker Compose)
-        run: docker compose up --build --abort-on-container-exit test_scrapper
-      - name: Upload scrapper test results
+      - name: Run scraper tests (Docker Compose)
+        run: docker compose up --build --abort-on-container-exit test_scraper
+      - name: Upload scraper test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: scrapper-test-results
+          name: scraper-test-results
           path: .
 
   coverage:
@@ -65,11 +65,11 @@ jobs:
       - name: Set test status
         run: |
           MCP_RESULT="${{ needs.test_mcp.result }}"
-          SCRAPPER_RESULT="${{ needs.test_scrapper.result }}"
-          if [ "$MCP_RESULT" = "success" ] && [ "$SCRAPPER_RESULT" = "success" ]; then
+          SCRAPER_RESULT="${{ needs.test_scraper.result }}"
+          if [ "$MCP_RESULT" = "success" ] && [ "$SCRAPER_RESULT" = "success" ]; then
             echo "TEST_STATUS=passing" >> $GITHUB_ENV
             echo "COLOR=green" >> $GITHUB_ENV
-          elif [ "$MCP_RESULT" = "failure" ] && [ "$SCRAPPER_RESULT" = "failure" ]; then
+          elif [ "$MCP_RESULT" = "failure" ] && [ "$SCRAPER_RESULT" = "failure" ]; then
             echo "TEST_STATUS=failing" >> $GITHUB_ENV
             echo "COLOR=red" >> $GITHUB_ENV
           else
