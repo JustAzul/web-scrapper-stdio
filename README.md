@@ -11,7 +11,7 @@
 ![Last Commit](https://img.shields.io/github/last-commit/JustAzul/web-scrapper-stdio)
 ![Issues](https://img.shields.io/github/issues/JustAzul/web-scrapper-stdio)
 ![PRs](https://img.shields.io/github/issues-pr/JustAzul/web-scrapper-stdio)
-![PEP8](https://img.shields.io/badge/code%20style-pep8-orange)
+![linting: Ruff](https://img.shields.io/badge/linting-Ruff-black?logo=ruff&logoColor=black)
 ![GHCR](https://img.shields.io/badge/ghcr.io-JustAzul%2Fweb--scrapper--stdio-blue?logo=github)
 
 **A Python-based MCP server for robust, headless web scraping—extracts main text content from web pages and outputs Markdown, text, or HTML for seamless AI and automation integration.**
@@ -26,6 +26,8 @@
 - Per-domain rate limiting
 - Easy integration with AI tools and IDEs (Cursor, Claude Desktop, Continue, JetBrains, Zed, etc.)
 - One-click install for Cursor, interactive installer for Claude
+- Enforced code quality with **Ruff** and **Bandit**.
+- Automated dependency checking with **Deptry**.
 
 ---
 
@@ -215,6 +217,19 @@ You can override most configuration options using environment variables:
 - `DEFAULT_TEST_NO_DELAY_THRESHOLD`: Threshold for skipping artificial delays in tests (default: 0.5)
 - `DEBUG_LOGS_ENABLED`: Set to `true` to enable debug-level logs (default: `false`)
 
+### Chunked HTML Processor Tuning  
+The scraper now includes a **memory-aware, chunked HTML processor**.  Default behaviour preserves backward-compatibility, but you can fine-tune processing via environment variables:
+
+| Variable | Default | Description |
+| :-- | :-- | :-- |
+| `CHUNK_ENABLE` | `true` | Set `false` to disable chunked processing globally. |
+| `CHUNK_SIZE_THRESHOLD` | `100000` (bytes) | Minimum HTML size before chunk mode triggers. |
+| `CHUNK_MEMORY_LIMIT_MB` | `100` | Soft RSS limit; processor enters *auto* chunk mode when current RSS > `0.8 * limit` and aborts when RSS > `1.2 * limit`. |
+| `CHUNK_PARSER` | `html.parser` | Parser used by **both** processing paths (`html.parser`, `lxml`, etc.). |
+| `CHUNK_EXTRA_NOISE_CLEANUP` | `false` | When `true`, removes additional noise selectors (`nav`, `.ads`, `.sidebar`, …).  Disabled by default for output parity. |
+
+These map directly to the new `ChunkedHTMLProcessor` constructor parameters for library users.
+
 ---
 
 ## Error Handling & Limitations
@@ -231,23 +246,73 @@ You can override most configuration options using environment variables:
 
 ---
 
+## Code Quality
+
+This project uses modern tooling to ensure high code quality, consistency, and security:
+
+- **[Ruff](https://github.com/astral-sh/ruff)**: An extremely fast Python linter and code formatter, used to enforce a consistent code style (compatible with Black) and catch common errors.
+- **[Bandit](https://github.com/PyCQA/bandit)**: A tool designed to find common security issues in Python code.
+- **[Deptry](https://github.com/fpgmaas/deptry)**: A command-line tool to check for issues with dependencies, such as unused or missing dependencies.
+
 ## Development & Testing
 
-### Running Tests (Docker Compose)
-All tests must be run using Docker Compose. Do **not** run tests outside Docker.
+### Local Development Setup
 
-- **All tests:**
-  ```sh
-  docker compose up --build --abort-on-container-exit test
-  ```
-- **MCP server tests only:**
-  ```sh
-  docker compose up --build --abort-on-container-exit test_mcp
-  ```
-- **Scrapper tests only:**
-  ```sh
-  docker compose up --build --abort-on-container-exit test_scrapper
-  ```
+1.  **Clone the repository:**
+    ```sh
+    git clone https://github.com/JustAzul/python-web-mcp-scrapper.git
+    cd python-web-mcp-scrapper
+    ```
+
+2.  **Create a virtual environment and install dependencies:**
+    ```sh
+    python3 -m venv .venv
+    source .venv/bin/activate
+    pip install -r requirements.txt -r requirements-dev.txt
+    ```
+
+3.  **Install Playwright browsers:**
+    ```sh
+    playwright install --with-deps chromium
+    ```
+
+### Running Tests (Docker Compose)
+
+All tests **must** be run using Docker Compose to ensure a consistent and clean environment. Do **not** run `pytest` directly on your local machine.
+
+The project is configured with different test services in `docker-compose.yml` for flexibility:
+
+-   **Run all fast tests (unit and integration, excluding slow):**
+    This is the default command and is recommended for most development workflows.
+    ```sh
+    docker compose up --build --abort-on-container-exit test
+    ```
+
+-   **Run only unit tests:**
+    This is the fastest way to get feedback on core logic changes.
+    ```sh
+    docker compose up --build --abort-on-container-exit test-unit
+    ```
+
+-   **Run all integration tests (excluding slow):**
+    ```sh
+    docker compose up --build --abort-on-container-exit test-integration
+    ```
+
+-   **Run the complete test suite (including slow external tests):**
+    This command runs all tests, including those marked as `@pytest.mark.slow`, which make requests to external websites and can be slow or unreliable.
+    ```sh
+    docker compose up --build --abort-on-container-exit test-all
+    ```
+
+### Linting and Formatting
+
+To automatically format the code and check for linting errors, run:
+
+```sh
+ruff format .
+ruff check .
+```
 
 ---
 
