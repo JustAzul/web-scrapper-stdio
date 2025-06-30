@@ -1,16 +1,62 @@
-import importlib.util
-import pathlib
+from enum import Enum
+from bs4 import BeautifulSoup
+from markdownify import markdownify as md
 
-_spec = importlib.util.spec_from_file_location(
-    "src.output-format-handler", pathlib.Path(__file__).with_name("output-format-handler.py")
-)
-_output_format_module = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_output_format_module)  # type: ignore
+TRUNCATION_NOTICE = "\n\n[Content truncated due to length]"
 
-OutputFormat = _output_format_module.OutputFormat
-format_content = _output_format_module.format_content
-truncate_content = _output_format_module.truncate_content
-truncate_html = _output_format_module.truncate_html
-to_markdown = _output_format_module.to_markdown
-to_text = _output_format_module.to_text
-to_html = _output_format_module.to_html
+
+class OutputFormat(Enum):
+    MARKDOWN = "markdown"
+    TEXT = "text"
+    HTML = "html"
+
+
+def to_markdown(html: str) -> str:
+    return md(html)
+
+
+def to_text(html: str = None, soup: BeautifulSoup = None) -> str:
+    if soup is None:
+        soup = BeautifulSoup(html, "html.parser")
+    return soup.get_text(separator="\n", strip=True)
+
+
+def to_html(html: str = None, soup: BeautifulSoup = None) -> str:
+    if soup is None:
+        soup = BeautifulSoup(html, "html.parser")
+    return str(soup)
+
+
+def format_content(
+    html: str, output_format: OutputFormat, soup: BeautifulSoup = None
+) -> str:
+    if output_format is OutputFormat.TEXT:
+        return to_text(html, soup)
+    if output_format is OutputFormat.HTML:
+        return to_html(html, soup)
+    return to_markdown(html)
+
+
+def truncate_html(
+    html: str = None, max_length: int = None, soup: BeautifulSoup = None
+) -> str:
+    if not max_length or len(html) <= max_length:
+        return html
+
+    if soup is None:
+        soup = BeautifulSoup(html, "html.parser")
+
+    text = soup.get_text(strip=True)
+
+    if len(text) <= max_length:
+        return text
+
+    return text[:max_length] + TRUNCATION_NOTICE
+
+
+def truncate_content(content: str, max_length: int) -> str:
+    if content is None or max_length is None:
+        return content
+    if len(content) > max_length:
+        return content[:max_length] + TRUNCATION_NOTICE
+    return content

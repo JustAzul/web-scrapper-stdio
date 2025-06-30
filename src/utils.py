@@ -8,4 +8,4 @@ def filter_none_values(d: dict) -> dict:
     Returns:
         dict: A new dictionary with None values removed.
     """
-    return {k: v for k, v in d.items() if v is not None} 
+    return {k: v for k, v in d.items() if v is not None}
