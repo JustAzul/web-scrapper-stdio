@@ -9,10 +9,21 @@ import asyncio
 
 
 class AsyncSettings:
-    Async settings manager for demonstration purposes.
+    """Async settings manager for demonstration purposes."""
 
-    if needed in the future.
-    """
+    def __init__(self):
         self._loaded = False
-    async def reload_settings_async(self) -> None:
+
+    async def load_config_async(self):
+        """Simulates asynchronous loading of settings."""
+        await asyncio.sleep(0)
         self._loaded = True
+
+    @property
+    def is_loaded(self) -> bool:
+        """Returns the loading status."""
+        return self._loaded
+
+    async def reload_settings_async(self) -> None:
+        """Alias for loading settings."""
+        await self.load_config_async()

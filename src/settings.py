@@ -64,6 +64,11 @@ class Settings(PydanticBaseSettings):
         default=False, description="Enable debug logging output"
     )
 
+    allow_localhost: bool = Field(
+        default=False,
+        description="Allow scraping of localhost and local IP addresses. FOR DEVELOPMENT ONLY.",
+    )
+
     class Config:
         # Environment variable settings
         env_file = ".env"
@@ -126,3 +131,4 @@ DEFAULT_MIN_SECONDS_BETWEEN_REQUESTS = _settings.default_min_seconds_between_req
 DEFAULT_TEST_REQUEST_TIMEOUT = _settings.default_test_request_timeout
 DEFAULT_TEST_NO_DELAY_THRESHOLD = _settings.default_test_no_delay_threshold
 DEBUG_LOGS_ENABLED = _settings.debug_logs_enabled
+ALLOW_LOCALHOST = _settings.allow_localhost

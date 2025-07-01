@@ -6,5 +6,6 @@
             "source.fixAll": "explicit",
             "source.organizeImports": "explicit"
         }
-    }
+    },
+    "makefile.configureOnOpen": false
 }
