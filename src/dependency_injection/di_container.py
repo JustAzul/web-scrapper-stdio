@@ -16,6 +16,15 @@ class DIContainer:
         self._services: Dict[Union[str, Type], Callable[[], Any]] = {}
         self._singletons: Dict[Union[str, Type], Any] = {}
         self._singleton_factories: Dict[Union[str, Type], Callable[[], Any]] = {}
+        self._configured = False
+
+    def set_configured(self, configured: bool = True):
+        """Marca o container como configurado."""
+        self._configured = configured
+
+    def is_configured(self) -> bool:
+        """Verifica se o container foi configurado."""
+        return self._configured
 
     def register(
         self, interface: Union[str, Type[T]], factory: Callable[[], T]
@@ -118,3 +127,9 @@ class DIContainer:
             or interface in self._singleton_factories
             or interface in self._singletons
         )
+
+    def reset(self):
+        """Resets the container for testing purposes."""
+        self._services.clear()
+        self._singletons.clear()
+        self._configured = False

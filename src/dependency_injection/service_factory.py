@@ -21,18 +21,20 @@ class ServiceFactory:
         Returns:
             Instância do WebScrapingService configurado
         """
-        from src.scraper.application.services.web_scraping_service import WebScrapingService
+        from src.scraper.application.services.web_scraping_service import (
+            WebScrapingService,
+        )
 
         # Resolve dependências
         browser_factory = self.container.resolve("IBrowserFactory")
         content_processor = self.container.resolve("IContentProcessingService")
         configuration_service = self.container.resolve("IScrapingConfigurationService")
+        orchestrator = self.container.resolve("FallbackOrchestrator")
 
         # Cria serviço com dependências injetadas
         return WebScrapingService(
-            browser_factory=browser_factory,
             content_processor=content_processor,
-            configuration_service=configuration_service,
+            orchestrator=orchestrator,
         )
 
     def create_mcp_request_handler(self) -> Any:

@@ -11,13 +11,17 @@ with clear meanings, improving code readability and maintainability.
 
 MAX_TIMEOUT_SECONDS = 240
 DEFAULT_CONFIG_TIMEOUT = 30  # Default timeout for Playwright operations
-DEFAULT_FALLBACK_TIMEOUT = 10  # Default timeout for HTTPX fallback
+DEFAULT_FALLBACK_TIMEOUT = 15  # Default timeout for HTTPX fallback
+CIRCUIT_BREAKER_RECOVERY_TIMEOUT = 60  # Default recovery timeout for circuit breaker
 
 DEFAULT_CLICK_TIMEOUT_MS = 3000
 MILLISECONDS_PER_SECOND = 1000
 
+# Timeout for network to be idle (in milliseconds)
+NETWORK_IDLE_TIMEOUT_MS = 500
+
 # Timeout for clicking selectors (in milliseconds) - replaces magic number 5000
-WAIT_FOR_SELECTOR_TIMEOUT = 5000
+SELECTOR_CLICK_TIMEOUT_MS = 5000
 
 
 # =============================================================================
@@ -63,7 +67,7 @@ MEMORY_THRESHOLD_MULTIPLIER = 1.2
 # CONTENT CONSTANTS
 # =============================================================================
 
-MAX_CONTENT_LENGTH = 10 * 1024 * 1024  # 10 MB limit for scraped content
+MAX_CONTENT_LENGTH = 1_000_000  # 1 MB limit for scraped content
 
 # Threshold for considering content "large" (in KB)
 
@@ -184,8 +188,8 @@ CONTENT_AREA_PATTERNS = [
 # Maximum timeout for MCP validation (in seconds) - replaces magic number 30
 MAX_TIMEOUT_VALIDATION = 30
 
-# Maximum grace period for MCP validation (in seconds) - replaces magic number 5
-MAX_GRACE_PERIOD_VALIDATION = 5
+# Maximum grace period for MCP validation (in seconds) - replaces magic number 120
+MAX_GRACE_PERIOD_VALIDATION = 120
 
 # Threshold for considering content "large" (in KB)
 LARGE_CONTENT_THRESHOLD_KB = 500

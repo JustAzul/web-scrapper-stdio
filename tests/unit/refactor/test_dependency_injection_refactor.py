@@ -149,11 +149,13 @@ class TestServiceFactory:
         mock_browser_factory = Mock()
         mock_content_processor = Mock()
         mock_config_service = Mock()
+        mock_orchestrator = Mock()
 
         # Registra dependências no container
         container.register("IBrowserFactory", lambda: mock_browser_factory)
         container.register("IContentProcessingService", lambda: mock_content_processor)
         container.register("IScrapingConfigurationService", lambda: mock_config_service)
+        container.register("FallbackOrchestrator", lambda: mock_orchestrator)
 
         # Cria serviço via factory
         service = factory.create_web_scraping_service()
@@ -202,20 +204,19 @@ class TestApplicationBootstrap:
 
     def test_application_bootstrap_configure_dependencies(self):
         """Deve configurar todas as dependências no container"""
+        from src.dependency_injection import container as global_container
         from src.dependency_injection.application_bootstrap import ApplicationBootstrap
-        from src.dependency_injection.di_container import DIContainer
 
         bootstrap = ApplicationBootstrap()
-        container = DIContainer()
 
-        # Configura dependências
-        bootstrap.configure_dependencies(container)
+        # Configura dependências no container global
+        bootstrap.configure_dependencies()
 
-        # Verifica se todas as interfaces foram registradas
-        browser_factory = container.resolve("IBrowserFactory")
-        content_service = container.resolve("IContentProcessingService")
-        config_service = container.resolve("IScrapingConfigurationService")
-        web_service = container.resolve("IWebScrapingService")
+        # Verifica se todas as interfaces foram registradas no container global
+        browser_factory = global_container.resolve("IBrowserFactory")
+        content_service = global_container.resolve("IContentProcessingService")
+        config_service = global_container.resolve("IScrapingConfigurationService")
+        web_service = global_container.resolve("IWebScrapingService")
 
         assert browser_factory is not None
         assert content_service is not None
@@ -251,23 +252,24 @@ class TestRefactoredMain:
         # Mock do bootstrap e container
         with patch("src.main.ApplicationBootstrap") as mock_bootstrap_class:
             mock_bootstrap = Mock()
-            mock_server = Mock()
+            mock_server = AsyncMock()  # O servidor tem métodos async
 
-            # Configura mocks - create_server deve ser AsyncMock
+            # Configura mocks
             mock_bootstrap_class.return_value = mock_bootstrap
-            mock_bootstrap.create_server = AsyncMock(return_value=mock_server)
-            mock_server.run = AsyncMock()
+            mock_bootstrap.create_server.return_value = mock_server
 
-            # Mock do stdio_server
-            with patch("src.main.stdio_server") as mock_stdio:
-                mock_stdio.return_value.__aenter__.return_value = (Mock(), Mock())
+            # Mock do stdio_server para ser um async context manager
+            with patch("src.main.stdio_server", new_callable=AsyncMock) as mock_stdio:
+                # Configura o mock para retornar tupla de streams
+                mock_stdio.return_value = (AsyncMock(), AsyncMock())
 
                 # Executa serve
                 await serve()
 
-                # Verifica se bootstrap foi usado
-                mock_bootstrap_class.assert_called_once()
-                mock_bootstrap.create_server.assert_called_once()
+            # Verificações
+            mock_bootstrap_class.assert_called_once()
+            mock_bootstrap.create_server.assert_called_once()
+            mock_server.serve.assert_awaited_once()
 
     def test_main_no_hardcoded_dependencies(self):
         """Deve verificar que main.py não tem mais dependências hardcoded"""
@@ -314,16 +316,15 @@ class TestBackwardCompatibility:
         # Mock completo para teste de integração
         with (
             patch("src.main.ApplicationBootstrap") as mock_bootstrap_class,
-            patch("src.main.stdio_server") as mock_stdio,
+            patch("src.main.stdio_server", new_callable=AsyncMock) as mock_stdio,
         ):
             mock_bootstrap = Mock()
-            mock_server = Mock()
+            mock_server = AsyncMock()
 
-            # Configura mocks - create_server deve ser AsyncMock
+            # Configura mocks
             mock_bootstrap_class.return_value = mock_bootstrap
-            mock_bootstrap.create_server = AsyncMock(return_value=mock_server)
-            mock_server.run = AsyncMock()
-            mock_stdio.return_value.__aenter__.return_value = (Mock(), Mock())
+            mock_bootstrap.create_server.return_value = mock_server
+            mock_stdio.return_value = (AsyncMock(), AsyncMock())
 
             # Simula que server tem os handlers registrados
             mock_server.list_tools = Mock()
@@ -336,22 +337,23 @@ class TestBackwardCompatibility:
 
             # Verifica que servidor foi criado e executado
             mock_bootstrap.create_server.assert_called_once()
-            mock_server.run.assert_called_once()
+            mock_server.serve.assert_awaited_once()
 
     def test_dip_compliance_achieved(self):
-        """Deve verificar que DIP foi implementado corretamente"""
+        """Deve verificar se todas as dependências são resolvidas via abstrações"""
+        from src.dependency_injection import container as global_container
         from src.dependency_injection.application_bootstrap import ApplicationBootstrap
-        from src.dependency_injection.di_container import DIContainer
 
-        # Verifica que abstrações existem
         bootstrap = ApplicationBootstrap()
-        container = DIContainer()
+
+        # Assegura que o container está limpo antes do teste
+        global_container.reset()
 
         # Configura dependências
-        bootstrap.configure_dependencies(container)
+        bootstrap.configure_dependencies()
 
         # Verifica que dependências são resolvidas via abstrações
-        assert container.resolve("IBrowserFactory") is not None
-        assert container.resolve("IContentProcessingService") is not None
-        assert container.resolve("IScrapingConfigurationService") is not None
-        assert container.resolve("IWebScrapingService") is not None
+        assert global_container.resolve("IBrowserFactory") is not None
+        assert global_container.resolve("IContentProcessingService") is not None
+        assert global_container.resolve("IScrapingConfigurationService") is not None
+        assert global_container.resolve("IWebScrapingService") is not None

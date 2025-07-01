@@ -1,14 +1,9 @@
-from enum import Enum
 from bs4 import BeautifulSoup
 from markdownify import markdownify as md
 
+from src.enums import OutputFormat
+
 TRUNCATION_NOTICE = "\n\n[Content truncated due to length]"
-
-
-class OutputFormat(Enum):
-    MARKDOWN = "markdown"
-    TEXT = "text"
-    HTML = "html"
 
 
 def to_markdown(html: str) -> str:

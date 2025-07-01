@@ -19,16 +19,16 @@ from mcp.types import (
     PromptMessage,
     TextContent,
 )
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from src.config import DEFAULT_TIMEOUT_SECONDS
-from src.logger import Logger
-from src.output_format_handler import OutputFormat
 from src.core.constants import (
     MAX_CONTENT_LENGTH,
     MAX_GRACE_PERIOD_VALIDATION,
     MAX_TIMEOUT_VALIDATION,
 )
+from src.logger import Logger
+from src.output_format_handler import OutputFormat
 from src.scraper.application.services.web_scraping_service import WebScrapingService
 from src.utils import filter_none_values
 
@@ -78,6 +78,16 @@ class ScrapeArgs(BaseModel):
         description="Additional HTML elements (CSS selectors) to remove before extraction.",
     )
 
+    @field_validator("url", "click_selector")
+    def prevent_malicious_input(cls, v):
+        """Prevent injection of malicious characters."""
+        if v is None:
+            return v
+        malicious_chars = ["<", ">", "'", '"', ";", "&", "|", "{", "}"]
+        if any(char in v for char in malicious_chars):
+            raise ValueError("Malicious characters detected in input")
+        return v
+
 
 class MCPParameterValidator:
     """
@@ -104,7 +114,10 @@ class MCPParameterValidator:
         """
         if tool_name != "scrape_web":
             raise McpError(
-                ErrorData(code=INVALID_PARAMS, message=f"Unknown tool: {tool_name}")
+                ErrorData(
+                    code=INVALID_PARAMS,
+                    message=f"Unknown tool: {tool_name}",
+                )
             )
 
         # Create a filtered copy of arguments without mutating the original
@@ -118,7 +131,7 @@ class MCPParameterValidator:
 
     def validate_prompt_parameters(
         self, prompt_name: str, arguments: Optional[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+    ) -> ScrapeArgs:
         """
         Validate and convert prompt parameters.
 
@@ -127,23 +140,27 @@ class MCPParameterValidator:
             arguments: Raw arguments from MCP request
 
         Returns:
-            Validated parameters dictionary
+            Validated ScrapeArgs object
 
         Raises:
             McpError: If validation fails or prompt is unknown
         """
         if prompt_name != "scrape":
             raise McpError(
-                ErrorData(code=INVALID_PARAMS, message=f"Unknown prompt: {prompt_name}")
+                ErrorData(
+                    code=INVALID_PARAMS,
+                    message=f"Unknown prompt: {prompt_name}",
+                )
             )
 
         if not arguments or "url" not in arguments:
             raise McpError(ErrorData(code=INVALID_PARAMS, message="URL is required"))
 
-        validated_args = {"url": arguments["url"]}
+        # Create a copy of arguments for processing
+        validated_args = arguments.copy()
 
         # Handle output_format conversion
-        output_format = arguments.get("output_format", OutputFormat.MARKDOWN)
+        output_format = validated_args.get("output_format", OutputFormat.MARKDOWN)
         if isinstance(output_format, str):
             try:
                 output_format = OutputFormat(output_format)
@@ -154,7 +171,13 @@ class MCPParameterValidator:
                 output_format = OutputFormat.MARKDOWN
 
         validated_args["output_format"] = output_format
-        return validated_args
+
+        # Create and return ScrapeArgs object
+        try:
+            return ScrapeArgs(**validated_args)
+        except Exception as e:
+            logger.error(f"Parameter validation failed: {e}")
+            raise McpError(ErrorData(code=INVALID_PARAMS, message=str(e)))
 
 
 class MCPResponseFormatter:
@@ -293,20 +316,20 @@ class MCPRequestHandler:
 
         # Execute scraping
         logger.info(f"Scraping URL: {validated_args.url}")
-        result = await self._execute_scraping(validated_args)
-
-        # Handle errors
-        if result.get("error"):
-            logger.error(f"Failed to scrape {validated_args.url}: {result['error']}")
+        try:
+            # This call might fail if scraping fails
+            scraper_result = await self._execute_scraping(validated_args)
+        except Exception as e:
+            logger.error(f"Scraping execution failed: {e}", exc_info=True)
             raise McpError(
                 ErrorData(
                     code=INTERNAL_ERROR,
-                    message=f"Failed to scrape {validated_args.url}: {result['error']}",
+                    message=f"An unexpected error occurred: {e}",
                 )
             )
 
         # Format and return response
-        return self.formatter.format_tool_response(result)
+        return self.formatter.format_tool_response(scraper_result)
 
     async def handle_prompt_request(
         self, prompt_name: str, arguments: Optional[Dict[str, Any]]
@@ -326,41 +349,29 @@ class MCPRequestHandler:
         )
 
         # Validate parameters
-        validated_args_dict = self.validator.validate_prompt_parameters(
-            prompt_name, arguments
-        )
-
-        # Execute scraping
-        # We create a ScrapeArgs object to use the same execution path as tools
-        scrape_args = ScrapeArgs(
-            url=validated_args_dict["url"],
-            output_format=validated_args_dict["output_format"],
-        )
-        logger.info(f"Scraping URL: {scrape_args.url}")
-        result = await self._execute_scraping(scrape_args)
-
-        # Handle errors
-        if result.get("error"):
-            logger.error(f"Failed to scrape {scrape_args.url}: {result['error']}")
+        try:
+            validated_args = self.validator.validate_prompt_parameters(
+                prompt_name, arguments
+            )
+            scraper_result = await self._execute_scraping(validated_args)
+        except McpError as e:
+            # Propagate MCP-specific errors (like validation) directly
+            raise e
+        except Exception as e:
+            logger.error(f"Scraping execution failed: {e}", exc_info=True)
+            # For prompts, we can format the error nicely instead of raising
             return self.formatter.format_error_response(
-                scrape_args.url, result["error"]
+                url=arguments.get("url", "unknown"), error_message=str(e)
             )
 
-        return self.formatter.format_prompt_response(result)
+        return self.formatter.format_prompt_response(scraper_result)
 
     async def _execute_scraping(self, args: ScrapeArgs) -> Dict[str, Any]:
         """
-        Execute the scraping process by calling the scraper service.
-
-        Args:
-            args: A validated ScrapeArgs object containing all parameters.
-
-        Returns:
-            A dictionary with the scraping result.
+        Helper method to execute scraping and handle potential errors.
         """
-        # The WebScrapingService.scrape_url method accepts keyword arguments
-        # that match the fields in our ScrapeArgs model. We can use model_dump
-        # to pass them cleanly.
-        return await self.scraper_service.scrape_url(
+        # The WebScrapingService now handles the entire workflow
+        result = await self.scraper_service.scrape_url(
             **args.model_dump(exclude_none=True)
         )
+        return result

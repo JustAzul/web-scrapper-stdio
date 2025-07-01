@@ -3,12 +3,15 @@ Application Bootstrap
 Responsabilidade única: Configurar e inicializar toda a aplicação com DI
 """
 
+from typing import Any
+
 from mcp.server import Server
 from mcp.types import Prompt, PromptArgument, Tool
 
 from src.logger import Logger
 
-from .di_container import DIContainer
+# Importa o container global
+from . import container as global_container
 from .service_factory import ServiceFactory
 
 
@@ -18,42 +21,51 @@ class ApplicationBootstrap:
     def __init__(self):
         self.logger = Logger(__name__)
 
-    def configure_dependencies(self, container: DIContainer) -> None:
+    def configure_dependencies(self) -> None:
         """
-        Configura todas as dependências no container DI
-
-        Args:
-            container: Container de DI a ser configurado
+        Configura todas as dependências no container DI global
         """
         # Registra implementações concretas como singletons
-        container.register_singleton(
+        global_container.register_singleton(
             "IBrowserFactory", lambda: self._create_browser_factory()
         )
 
-        container.register_singleton(
+        global_container.register_singleton(
             "IContentProcessingService",
             lambda: self._create_content_processing_service(),
         )
 
-        container.register_singleton(
+        global_container.register_singleton(
             "IScrapingConfigurationService",
             lambda: self._create_scraping_configuration_service(),
         )
 
+        # Registra o orquestrador como um serviço central
+        global_container.register_singleton(
+            "FallbackOrchestrator", lambda: self._create_fallback_orchestrator()
+        )
+
         # Registra serviços compostos
-        container.register_singleton(
+        global_container.register_singleton(
             "IWebScrapingService",
-            lambda: self._create_web_scraping_service_with_dependencies(container),
+            lambda: self._create_web_scraping_service_with_dependencies(),
         )
 
         # Registra componentes MCP
-        container.register_singleton(
+        global_container.register_singleton(
             "IMCPParameterValidator", lambda: self._create_mcp_parameter_validator()
         )
 
-        container.register_singleton(
+        global_container.register_singleton(
             "IMCPResponseFormatter", lambda: self._create_mcp_response_formatter()
         )
+
+        # Marca o container como configurado
+        global_container.set_configured()
+
+    def get_scraping_orchestrator(self) -> Any:
+        """Retorna a instância do orquestrador de scraping."""
+        return global_container.resolve("FallbackOrchestrator")
 
     def _create_browser_factory(self):
         """Cria instância de FallbackBrowserFactory"""
@@ -79,9 +91,17 @@ class ApplicationBootstrap:
 
         return ScrapingConfigurationService()
 
-    def _create_web_scraping_service_with_dependencies(self, container: DIContainer):
+    def _create_fallback_orchestrator(self):
+        """Cria uma instância singleton do FallbackOrchestrator."""
+        from src.scraper.application.services.fallback_orchestrator import (
+            FallbackOrchestrator,
+        )
+
+        return FallbackOrchestrator()
+
+    def _create_web_scraping_service_with_dependencies(self):
         """Cria WebScrapingService com dependências resolvidas"""
-        factory = ServiceFactory(container)
+        factory = ServiceFactory(global_container)
         return factory.create_web_scraping_service()
 
     def _create_mcp_parameter_validator(self):
@@ -105,12 +125,11 @@ class ApplicationBootstrap:
         """
         self.logger.info("Inicializando servidor MCP com Dependency Injection")
 
-        # Cria e configura container
-        container = DIContainer()
-        self.configure_dependencies(container)
+        # Configura o container global
+        self.configure_dependencies()
 
         # Cria factory para serviços complexos
-        factory = ServiceFactory(container)
+        factory = ServiceFactory(global_container)
 
         # Cria servidor MCP
         server = Server("mcp-web-scrapper")
