@@ -6,6 +6,7 @@ Parte da refatoração T003 - Quebrar IntelligentFallbackScraper seguindo SRP
 import time
 from typing import Any, Dict, Optional
 
+import httpx
 from playwright.async_api import (
     Error as PlaywrightError,
 )
@@ -31,6 +32,7 @@ from ...infrastructure.web_scraping.playwright_scraping_strategy import (
 from ...infrastructure.web_scraping.requests_scraping_strategy import (
     RequestsScrapingStrategy,
 )
+from .scraping_request import ScrapingRequest
 
 logger = Logger(__name__)
 
@@ -82,21 +84,23 @@ class FallbackOrchestrator:
             self.config
         )
 
-    async def scrape_url(
-        self, url: str, custom_headers: Optional[Dict[str, Any]] = None
-    ) -> ScrapingResult:
+    async def scrape_url(self, request: ScrapingRequest) -> ScrapingResult:
         """
         Executa scraping com fallback inteligente
 
         Args:
-            url: URL para fazer scraping
-            custom_headers: Headers customizados
+            request: Objeto com todos os parâmetros da requisição
 
         Returns:
             Resultado do scraping com metadados
         """
         start_time = self.metrics_collector.start_operation()
         attempts = 0
+
+        # Monta headers a partir do request
+        custom_headers = {}
+        if request.user_agent:
+            custom_headers["User-Agent"] = request.user_agent
 
         # Verifica circuit breaker
         if self.circuit_breaker.is_open:
@@ -118,14 +122,14 @@ class FallbackOrchestrator:
         # Estratégia 1: Playwright
         try:
             attempts += 1
-            content = await self.playwright_strategy.scrape_url(url, custom_headers)
+            content = await self.playwright_strategy.scrape_url(request, custom_headers)
             self.circuit_breaker.record_success()
 
             self.metrics_collector.record_scraping_success(
                 start_time=start_time,
                 strategy_used="playwright_optimized",
                 attempts=attempts,
-                final_url=url,
+                final_url=request.url,
                 content_size=len(content) if content else 0,
             )
 
@@ -135,30 +139,34 @@ class FallbackOrchestrator:
                 strategy_used=FallbackStrategy.PLAYWRIGHT_OPTIMIZED,
                 attempts=attempts,
                 performance_metrics={"total_time": time.time() - start_time},
-                final_url=url,
+                final_url=request.url,
             )
 
         except (PlaywrightTimeoutError, PlaywrightError) as e:
-            logger.warning(f"Playwright strategy failed for {url}: {e}")
+            logger.warning(f"Playwright strategy failed for {request.url}: {e}")
             self.circuit_breaker.record_failure()
         except ImportError as e:
             logger.error(f"Playwright not available: {e}")
             self.circuit_breaker.record_failure()
         except Exception as e:
-            logger.error(f"Unexpected error in Playwright strategy for {url}: {e}")
+            logger.error(
+                f"Unexpected error in Playwright strategy for {request.url}: {e}"
+            )
             self.circuit_breaker.record_failure()
 
         # Estratégia 2: Fallback para requests
         try:
             attempts += 1
-            content = await self.requests_strategy.scrape_url(url, custom_headers)
+            content = await self.requests_strategy.scrape_url(
+                request.url, custom_headers
+            )
             self.circuit_breaker.record_success()
 
             self.metrics_collector.record_scraping_success(
                 start_time=start_time,
                 strategy_used="requests_fallback",
                 attempts=attempts,
-                final_url=url,
+                final_url=request.url,
                 content_size=len(content) if content else 0,
             )
 
@@ -168,7 +176,19 @@ class FallbackOrchestrator:
                 strategy_used=FallbackStrategy.REQUESTS_FALLBACK,
                 attempts=attempts,
                 performance_metrics={"total_time": time.time() - start_time},
-                final_url=url,
+                final_url=request.url,
+            )
+        except httpx.HTTPStatusError as e:
+            self.circuit_breaker.record_failure()
+            error_msg = f"HTTP error {e.response.status_code} for url {e.request.url}"
+            logger.warning(error_msg)
+            return ScrapingResult(
+                success=False,
+                content=None,
+                strategy_used=FallbackStrategy.ALL_FAILED,
+                attempts=attempts,
+                error=error_msg,
+                performance_metrics={"total_time": time.time() - start_time},
             )
 
         except Exception as e:

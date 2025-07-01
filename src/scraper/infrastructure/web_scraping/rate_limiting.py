@@ -1,5 +1,6 @@
 import asyncio
 import time
+from typing import Optional
 from urllib.parse import urlparse
 
 from src.config import DEFAULT_MIN_SECONDS_BETWEEN_REQUESTS
@@ -12,13 +13,20 @@ _domain_lock = asyncio.Lock()
 MIN_SECONDS_BETWEEN_REQUESTS = DEFAULT_MIN_SECONDS_BETWEEN_REQUESTS
 
 
-def get_domain_from_url(url: str) -> str | None:
+def get_domain_from_url(url: str) -> Optional[str]:
     """Extracts the network location (domain) from a URL."""
     if not url:
         return None
     try:
         parsed = urlparse(url)
-        return parsed.netloc
+        # An invalid URL may parse with no scheme and no netloc
+        if not parsed.scheme or not parsed.netloc:
+            logger.warning(f"Could not parse domain from invalid URL: {url}")
+            return None
+        netloc = parsed.netloc
+        if netloc.startswith("www."):
+            return netloc[4:]
+        return netloc
     except ValueError:
         logger.warning(f"Could not parse domain from invalid URL: {url}")
         return None

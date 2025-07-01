@@ -33,12 +33,8 @@ def test_rejects_unsafe_urls(invalid_url: str):
     """
     Ensures that URLs pointing to local or non-HTTP resources are rejected.
     This is a critical security measure against SSRF.
-    This test must run with ALLOW_LOCALHOST set to False.
+    This test must run with ALLOW_LOCALHOST set to False, which is the default.
     """
-    # Temporarily override settings for this specific test
-    settings = get_settings()
-    settings.allow_localhost = False
-
     with pytest.raises(ValidationError):
         ScrapeArgs(url=invalid_url)
 

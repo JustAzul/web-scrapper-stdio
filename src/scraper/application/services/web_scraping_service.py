@@ -7,17 +7,12 @@ REFACTORED VERSION: Now uses ScrapingRequest internally while maintaining
 backward compatibility with the original 10-parameter interface.
 """
 
-import asyncio
 from typing import Any, Dict, List, Optional
 
 from src.logger import Logger
 from src.output_format_handler import OutputFormat
-from src.scraper.application.contracts.browser_automation import BrowserAutomation
 from src.scraper.application.services.content_processing_service import (
     ContentProcessingService,
-)
-from src.scraper.application.services.scraping_configuration_service import (
-    ScrapingConfigurationService,
 )
 from src.scraper.application.services.scraping_request import ScrapingRequest
 from src.scraper.infrastructure.web_scraping.rate_limiting import apply_rate_limiting
@@ -34,16 +29,14 @@ class WebScrapingService:
 
     def __init__(
         self,
-        browser_factory: any,  # Should be a factory or provider for BrowserAutomation
         content_processor: ContentProcessingService,
-        configuration_service: ScrapingConfigurationService,
+        orchestrator: any,  # Should be FallbackOrchestrator
     ):
         """
         Initializes the web scraping service with its dependencies.
         """
-        self.browser_factory = browser_factory
         self.content_processor = content_processor
-        self.configuration_service = configuration_service
+        self.orchestrator = orchestrator
         self.logger = logger
 
     async def scrape_url(
@@ -76,46 +69,27 @@ class WebScrapingService:
         return await self._scrape_with_request(request)
 
     async def _scrape_with_request(self, request: ScrapingRequest) -> Dict[str, Any]:
-        browser_automation: Optional[BrowserAutomation] = None
         try:
             await apply_rate_limiting(request.url)
 
-            browser_config = self.configuration_service.get_browser_config(
-                custom_user_agent=request.user_agent,
-                timeout_seconds=request.timeout_seconds,
-            )
-            browser_automation = await self.browser_factory.create_browser(
-                browser_config
-            )
+            # Use the orchestrator to handle scraping with fallback
+            scrape_result = await self.orchestrator.scrape_url(request)
 
-            self.logger.debug(f"Navigating to URL: {request.url}")
-            nav_response = await browser_automation.navigate_to_url(request.url)
-            if not nav_response.success:
+            if not scrape_result.success:
                 return {
-                    "error": nav_response.error,
+                    "error": scrape_result.error,
                     "final_url": request.url,
                     "content": None,
                     "title": None,
                 }
 
-            final_url = nav_response.url or request.url
-            self.logger.debug(f"Waiting for content to stabilize on {final_url}")
-            await browser_automation.wait_for_content_stabilization(
-                browser_config.timeout_seconds
-            )
-
-            if request.click_selector:
-                await browser_automation.click_element(request.click_selector)
-                await asyncio.sleep(request.grace_period_seconds)  # Wait after click
-
-            html_content = await browser_automation.get_page_content()
+            final_url = scrape_result.final_url or request.url
+            html_content = scrape_result.content
 
             title, clean_html, text_content, error = (
                 self.content_processor.process_html(
                     html_content,
-                    self.configuration_service.get_elements_to_remove(
-                        request.custom_elements_to_remove
-                    ),
+                    request.custom_elements_to_remove or [],
                     final_url,
                 )
             )
@@ -149,6 +123,3 @@ class WebScrapingService:
                 "content": None,
                 "title": None,
             }
-        finally:
-            if browser_automation:
-                await browser_automation.close()

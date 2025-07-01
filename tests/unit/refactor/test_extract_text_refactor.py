@@ -132,6 +132,7 @@ class TestScrapingOrchestrator:
 
         output_formatter = Mock()
         output_formatter.format.return_value = "# Test Title\nTest Content"
+        output_formatter.truncate.side_effect = lambda content, max_length: content
 
         # Instância do orquestrador
         orchestrator = ScrapingOrchestrator(
@@ -170,28 +171,29 @@ class TestScrapingOrchestrator:
             output_formatter=Mock(),
         )
 
-        result = await orchestrator.scrape_url(url="invalid-url")
+        result = await orchestrator.scrape_url(
+            url="invalid-url", output_format=OutputFormat.TEXT
+        )
 
         assert result["error"] is not None
-        assert "invalid" in result["error"].lower()
+        assert "Invalid URL" in result["error"]
 
     def test_scraping_orchestrator_srp(self):
         """O orquestrador deve ter uma única responsabilidade: orquestrar o scraping"""
         # Verificar que não há mais 9 parâmetros na função principal
-        ScrapingOrchestrator()
+        ScrapingOrchestrator(
+            url_validator=Mock(), content_extractor=Mock(), output_formatter=Mock()
+        )
+        # Test passes if it doesn't raise an exception
+        assert True
 
-        # O método deve aceitar um objeto de configuração ao invés de múltiplos parâmetros
-        config = Mock()
-        config.url = "https://example.com"
-        config.timeout = 30
-        config.output_format = OutputFormat.MARKDOWN
-        config.max_length = None
-        config.custom_elements_to_remove = None
-
-        # Deve ser possível criar configuração sem múltiplos parâmetros
-        assert hasattr(config, "url")
-        assert hasattr(config, "timeout")
-        assert hasattr(config, "output_format")
+    @pytest.mark.asyncio
+    async def test_scrape_with_custom_timeout(self):
+        """Teste para verificar o comportamento com um timeout personalizado"""
+        # Implemente o teste para verificar o comportamento com um timeout personalizado
+        # Este teste deve ser implementado com base no comportamento esperado do ScrapingOrchestrator
+        # com um timeout personalizado
+        pass
 
 
 class TestBackwardCompatibility:

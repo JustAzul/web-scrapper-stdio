@@ -8,6 +8,7 @@ import pytest
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
 from src.scraper.application.services.fallback_orchestrator import FallbackOrchestrator
+from src.scraper.application.services.scraping_request import ScrapingRequest
 from src.scraper.infrastructure.web_scraping.intelligent_fallback_scraper import (
     FallbackConfig,
     FallbackStrategy,
@@ -48,7 +49,9 @@ class TestProblemFixes:
         fallback_orchestrator.metrics_collector = MagicMock()
         fallback_orchestrator.metrics_collector.start_operation.return_value = 123456789
 
-        result = await fallback_orchestrator.scrape_url("https://example.com")
+        # Create ScrapingRequest object instead of passing string
+        request = ScrapingRequest(url="https://example.com")
+        result = await fallback_orchestrator.scrape_url(request)
 
         # Verify fallback worked
         assert result.success is True
@@ -85,7 +88,9 @@ class TestProblemFixes:
         fallback_orchestrator.metrics_collector = MagicMock()
         fallback_orchestrator.metrics_collector.start_operation.return_value = 123456789
 
-        result = await fallback_orchestrator.scrape_url("https://example.com")
+        # Create ScrapingRequest object instead of passing string
+        request = ScrapingRequest(url="https://example.com")
+        result = await fallback_orchestrator.scrape_url(request)
 
         # Verify fallback worked
         assert result.success is True
@@ -122,7 +127,9 @@ class TestProblemFixes:
         with patch(
             "src.scraper.application.services.fallback_orchestrator.logger"
         ) as mock_logger:
-            result = await fallback_orchestrator.scrape_url("https://example.com")
+            # Create ScrapingRequest object instead of passing string
+            request = ScrapingRequest(url="https://example.com")
+            result = await fallback_orchestrator.scrape_url(request)
 
             # Verify fallback worked
             assert result.success is True

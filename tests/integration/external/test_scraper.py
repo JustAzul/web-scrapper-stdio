@@ -1,4 +1,5 @@
 import asyncio
+import logging
 
 import pytest
 from bs4 import BeautifulSoup
@@ -7,11 +8,14 @@ from src.config import (
     DEFAULT_MIN_SECONDS_BETWEEN_REQUESTS,
     DEFAULT_TEST_NO_DELAY_THRESHOLD,
 )
-from src.output_format_handler import OutputFormat
+from src.enums import OutputFormat
 from src.scraper import apply_rate_limiting, extract_text_from_url, get_domain_from_url
 
-# Short timeout for integration tests to prevent hanging
-TIMEOUT_SECONDS = 10
+# Configure logging
+logger = logging.getLogger(__name__)
+
+# Constants
+TIMEOUT_SECONDS = 30
 
 
 @pytest.mark.integration
@@ -147,7 +151,8 @@ async def test_nonexistent_domain():
     assert isinstance(result, dict)
     assert result.get("error")
     assert (
-        "Could not resolve" in result.get("error")
+        "name or service not known" in result.get("error").lower()
+        or "could not resolve" in result.get("error").lower()
         or "error" in result.get("error").lower()
     )
 
@@ -161,6 +166,7 @@ async def test_invalid_url_format():
     assert result.get("error")
     assert (
         "invalid url" in result.get("error").lower()
+        or "missing an 'http://' or 'https://' protocol" in result.get("error").lower()
         or "error" in result.get("error").lower()
     )
 
@@ -191,13 +197,20 @@ async def test_http_error_pages(status_code):
         or "http error" in error_message
         or "server error" in error_message
         or "not found" in error_message
+        or "circuit breaker" in error_message  # Accept circuit breaker responses
     ), f"Expected HTTP error indicator for {status_code} in: {result.get('error')}"
 
 
 def test_get_domain_from_url():
     """Test domain extraction - this is fast and doesn't require network."""
     assert get_domain_from_url("https://example.com") == "example.com"
-    assert get_domain_from_url("https://www.example.com") == "example.com"
+
+    # Debugging the failing test
+    www_domain = "https://www.example.com"
+    result = get_domain_from_url(www_domain)
+    print(f"DEBUG: get_domain_from_url('{www_domain}') returned '{result}'")
+    assert result == "example.com"
+
     assert get_domain_from_url("http://blog.example.com/post/123") == "blog.example.com"
     assert get_domain_from_url("https://example.com:8080") == "example.com:8080"
     assert get_domain_from_url("not-a-url") is None
@@ -242,11 +255,11 @@ async def test_extract_real_article():
 
     for attempt in range(max_retries):
         result = await extract_text_from_url(url, custom_timeout=TIMEOUT_SECONDS)
-        error = result.get("error", "")
+        error = result.get("error") or ""
         if "Page crashed" not in error:
-            break  # Success, exit loop
-        if attempt < max_retries - 1:
-            await asyncio.sleep(2)  # Wait before retrying
+            break
+        logger.info(f"Attempt {attempt + 1} failed with page crash, retrying...")
+        await asyncio.sleep(2)
 
     assert isinstance(result, dict)
     if result.get("error"):

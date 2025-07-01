@@ -3,9 +3,10 @@ TDD Tests for T011 - WebScrapingService.scrape_url Refactoring
 Tests for breaking down method with 10 parameters into specialized classes following SRP
 """
 
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
+from pytest_mock import MockerFixture
 
 from src.output_format_handler import OutputFormat
 
@@ -256,7 +257,7 @@ class TestInteractionHandler:
             InteractionHandler,
         )
 
-        handler = InteractionHandler()
+        handler = InteractionHandler(browser_automation=Mock())
         assert handler is not None
 
     @pytest.mark.asyncio
@@ -270,14 +271,14 @@ class TestInteractionHandler:
         mock_browser = AsyncMock()
         mock_browser.click_element.return_value = True
 
-        handler = InteractionHandler()
-        request = ScrapingRequest(url="https://example.com", click_selector=".button")
+        handler = InteractionHandler(browser_automation=mock_browser)
+        request = ScrapingRequest(url="https://example.com", click_selector=".btn")
 
-        result = await handler.handle_interactions(mock_browser, request)
+        result = await handler.handle_interaction(request)
 
         assert result.success is True
         assert result.error is None
-        mock_browser.click_element.assert_called_once_with(".button")
+        mock_browser.click_element.assert_called_once_with(".btn")
 
     @pytest.mark.asyncio
     async def test_interaction_handler_no_selector(self):
@@ -289,10 +290,10 @@ class TestInteractionHandler:
 
         mock_browser = AsyncMock()
 
-        handler = InteractionHandler()
-        request = ScrapingRequest(url="https://example.com")  # No click_selector
+        handler = InteractionHandler(browser_automation=mock_browser)
+        request = ScrapingRequest(url="https://example.com", click_selector=None)
 
-        result = await handler.handle_interactions(mock_browser, request)
+        result = await handler.handle_interaction(request)
 
         assert result.success is True
         assert result.error is None
@@ -309,10 +310,10 @@ class TestInteractionHandler:
         mock_browser = AsyncMock()
         mock_browser.click_element.return_value = False
 
-        handler = InteractionHandler()
-        request = ScrapingRequest(url="https://example.com", click_selector=".button")
+        handler = InteractionHandler(browser_automation=mock_browser)
+        request = ScrapingRequest(url="https://example.com", click_selector=".btn")
 
-        result = await handler.handle_interactions(mock_browser, request)
+        result = await handler.handle_interaction(request)
 
         assert result.success is True  # Non-critical failure
         assert "Could not click selector" in result.error
@@ -358,7 +359,7 @@ class TestContentExtractionHandler:
         handler = ContentExtractionHandler(content_processor=mock_content_processor)
         request = ScrapingRequest(url="https://example.com")
 
-        result = await handler.extract_content(
+        result = await handler.extract_and_process_content(
             mock_browser, request, "https://example.com", []
         )
 
@@ -385,7 +386,7 @@ class TestContentExtractionHandler:
         handler = ContentExtractionHandler(content_processor=mock_content_processor)
         request = ScrapingRequest(url="https://example.com")
 
-        result = await handler.extract_content(
+        result = await handler.extract_and_process_content(
             mock_browser, request, "https://example.com", []
         )
 
@@ -435,32 +436,32 @@ class TestRefactoredWebScrapingService:
         mock_extraction_handler = AsyncMock()
 
         # Mock successful navigation
-        nav_result = Mock()
+        nav_result = MagicMock()
         nav_result.success = True
         nav_result.final_url = "https://example.com"
-        nav_result.browser_automation = Mock()
+        nav_result.browser_automation = AsyncMock()
         nav_result.error = None
         mock_navigation_handler.navigate.return_value = nav_result
 
         # Mock successful stabilization
-        stab_result = Mock()
+        stab_result = MagicMock()
         stab_result.success = True
         stab_result.error = None
         mock_stabilization_handler.stabilize_content.return_value = stab_result
 
         # Mock successful interaction
-        int_result = Mock()
+        int_result = MagicMock()
         int_result.success = True
         int_result.error = None
         mock_interaction_handler.handle_interactions.return_value = int_result
 
         # Mock successful extraction
-        ext_result = Mock()
+        ext_result = MagicMock()
         ext_result.success = True
         ext_result.title = "Test Title"
         ext_result.content = "Test Content"
         ext_result.error = None
-        mock_extraction_handler.extract_content.return_value = ext_result
+        mock_extraction_handler.extract_and_process_content.return_value = ext_result
 
         service = RefactoredWebScrapingService(
             navigation_handler=mock_navigation_handler,
@@ -474,16 +475,18 @@ class TestRefactoredWebScrapingService:
         result = await service.scrape_url(request)
 
         # Verify result
-        assert result["title"] == "Test Title"
-        assert result["final_url"] == "https://example.com"
-        assert result["content"] == "Test Content"
         assert result["error"] is None
+        assert result["title"] == "Test Title"
+        assert result["content"] == "Test Content"
+
+        # Verify that the browser was closed
+        nav_result.browser_automation.close.assert_awaited_once()
 
         # Verify handler calls
         mock_navigation_handler.navigate.assert_called_once_with(request)
         mock_stabilization_handler.stabilize_content.assert_called_once()
         mock_interaction_handler.handle_interactions.assert_called_once()
-        mock_extraction_handler.extract_content.assert_called_once()
+        mock_extraction_handler.extract_and_process_content.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_refactored_service_navigation_failure(self):
@@ -499,10 +502,10 @@ class TestRefactoredWebScrapingService:
         mock_extraction_handler = AsyncMock()
 
         # Mock failed navigation
-        nav_result = Mock()
+        nav_result = MagicMock()
         nav_result.success = False
         nav_result.error = "Connection failed"
-        nav_result.browser_automation = Mock()
+        nav_result.browser_automation = AsyncMock()
         mock_navigation_handler.navigate.return_value = nav_result
 
         service = RefactoredWebScrapingService(
@@ -526,36 +529,46 @@ class TestRefactoredWebScrapingService:
         mock_navigation_handler.navigate.assert_called_once_with(request)
         mock_stabilization_handler.stabilize_content.assert_not_called()
         mock_interaction_handler.handle_interactions.assert_not_called()
-        mock_extraction_handler.extract_content.assert_not_called()
+        mock_extraction_handler.extract_and_process_content.assert_not_called()
 
 
 class TestBackwardCompatibility:
     """TDD Tests to ensure backward compatibility with existing WebScrapingService interface"""
 
     @pytest.mark.asyncio
-    async def test_original_service_interface_maintained(self):
+    async def test_original_service_interface_maintained(self, mocker: MockerFixture):
         """Test that original WebScrapingService interface is maintained"""
         from src.scraper.application.services.web_scraping_service import (
             WebScrapingService,
         )
 
-        # Should still accept the old parameter format
-        mock_browser_factory = Mock()
-        mock_content_processor = Mock()
-        mock_config_service = Mock()
-
-        service = WebScrapingService(
-            browser_factory=mock_browser_factory,
-            content_processor=mock_content_processor,
-            configuration_service=mock_config_service,
+        # Arrange
+        mocker.patch(
+            "src.scraper.application.services.web_scraping_service.apply_rate_limiting",
+            new_callable=AsyncMock,
+        )
+        mock_orchestrator = mocker.patch(
+            "src.scraper.application.services.fallback_orchestrator.FallbackOrchestrator",
+            autospec=True,
+        )
+        mock_orchestrator.scrape_url.return_value = mocker.Mock(
+            success=True, content="<html></html>", final_url="https://example.com"
         )
 
-        # Should still have the scrape_url method with same signature
-        assert hasattr(service, "scrape_url")
-        # Verify it accepts the old parameters (we'll test the actual call separately)
+        service = WebScrapingService(
+            content_processor=mocker.Mock(),
+            orchestrator=mock_orchestrator,
+        )
+
+        # Act
+        result = await service.scrape_url(url="https://example.com")
+
+        # Assert
+        assert result is not None
+        assert "content" in result
 
     @pytest.mark.asyncio
-    async def test_parameter_object_integration(self):
+    async def test_parameter_object_integration(self, mocker: MockerFixture):
         """Test that WebScrapingService can use ScrapingRequest internally"""
         from src.scraper.application.services.scraping_request import ScrapingRequest
 

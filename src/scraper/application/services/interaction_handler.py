@@ -6,49 +6,55 @@ following the Single Responsibility Principle.
 """
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional
 
 from src.logger import Logger
+from src.scraper.application.services.scraping_request import ScrapingRequest
 
 logger = Logger(__name__)
 
+
 @dataclass
+class InteractionResult:
+    """Dataclass for interaction results."""
+
     success: bool
+    error: Optional[str] = None
 
-    Single Responsibility: Handle element clicks and interactions
-        pass
-    ) -> InteractionResult:
+
+class InteractionHandler:
+    """Single Responsibility: Handle element clicks and interactions"""
+
+    def __init__(
+        self, browser_automation: Any
+    ):  # Replace Any with BrowserAutomationInterface
+        self.browser_automation = browser_automation
+        self.logger = Logger(__name__)
+
+    async def handle_interaction(self, request: ScrapingRequest) -> InteractionResult:
         """
+        Handles user interactions like clicking elements.
+        """
+        if not request.click_selector:
+            return InteractionResult(success=True)
 
-        Args:
-
-        Returns:
         try:
-            # Check if there's a click selector to handle
-                # No interaction needed - this is a success case
-                return InteractionResult(success=True, error=None)
-            # Attempt to click the specified element
-            logger.debug(f"Attempting to click selector: {request.click_selector}")
-
+            self.logger.debug(f"Attempting to click selector: {request.click_selector}")
+            click_success = await self.browser_automation.click_element(
                 request.click_selector
             )
 
             if click_success:
-                logger.debug(f"Successfully clicked selector: {request.click_selector}")
-                return InteractionResult(success=True, error=None)
-                # Click failed but this is not a critical error - continue processing
-                warning_msg = f"Could not click selector '{request.click_selector}'"
-                logger.warning(warning_msg)
-                return InteractionResult(
-                    success=True,  # Non-critical failure
-                    error=warning_msg,
+                self.logger.debug(
+                    f"Successfully clicked selector: {request.click_selector}"
                 )
+                return InteractionResult(success=True)
+            else:
+                warning_msg = f"Could not click selector '{request.click_selector}'"
+                self.logger.warning(warning_msg)
+                return InteractionResult(success=True, error=warning_msg)
 
         except Exception as e:
-            # Exception during click - also non-critical
-            warning_msg = f"Could not click selector '{request.click_selector}': {e}"
-            logger.warning(warning_msg)
-            return InteractionResult(
-                success=True,  # Non-critical failure
-                error=warning_msg,
-            )
+            warning_msg = f"Exception during click on '{request.click_selector}': {e}"
+            self.logger.warning(warning_msg)
+            return InteractionResult(success=True, error=warning_msg)

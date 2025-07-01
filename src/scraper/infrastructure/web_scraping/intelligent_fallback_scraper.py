@@ -12,7 +12,7 @@ Based on validated research from official Playwright documentation and real-worl
 """
 
 import asyncio
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -100,6 +100,10 @@ class ScrapingResult:
     performance_metrics: Optional[Dict[str, float]] = None
     final_url: Optional[str] = None
 
+    def to_dict(self) -> Dict[str, Any]:
+        """Converts the dataclass to a dictionary."""
+        return asdict(self)
+
 
 class IntelligentFallbackScraper:
     """
@@ -129,8 +133,15 @@ class IntelligentFallbackScraper:
         Faz scraping de URL usando orquestrador refatorado
         Mantém compatibilidade total com interface original
         """
+        # Import local para evitar dependência circular
+        from ...application.services.scraping_request import ScrapingRequest
+
+        # Cria um ScrapingRequest para compatibilidade com a nova interface
+        user_agent = custom_headers.get("User-Agent") if custom_headers else None
+        request = ScrapingRequest(url=url, user_agent=user_agent)
+
         # Delega para orquestrador refatorado
-        result = await self._orchestrator.scrape_url(url, custom_headers)
+        result = await self._orchestrator.scrape_url(request)
 
         # Atualiza métricas de performance para compatibilidade
         if result.performance_metrics:
@@ -242,24 +253,15 @@ class IntelligentFallbackScraper:
         Returns:
             HTML content as string
         """
-        headers = {
-            "User-Agent": "Mozilla/5.0 (compatible; IntelligentScraper/1.0)",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.5",
-            "Accept-Encoding": "gzip, deflate",
-            "Connection": "keep-alive",
-        }
-
         if headers:
-            headers.update(headers)
+            async with httpx.AsyncClient(headers=headers) as client:
+                response = await client.get(url, timeout=self.config.requests_timeout)
+        else:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url, timeout=self.config.requests_timeout)
 
-        async with httpx.AsyncClient(timeout=self.config.requests_timeout) as client:
-            response = await client.get(url, headers=headers)
-            response.raise_for_status()
-
-            # Clean and extract content
-            cleaned_content = self._clean_html_content(response.text)
-            return cleaned_content
+        response.raise_for_status()  # Raise exception for non-2xx status codes
+        return response.text
 
     def _clean_html_content(self, html_content: str) -> str:
         """

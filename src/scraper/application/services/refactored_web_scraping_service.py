@@ -8,7 +8,9 @@ instead of a monolithic scrape_url method with 10 parameters.
 from typing import Any, Dict
 
 from src.logger import Logger
-from src.scraper.application.services.content_extraction_handler import ContentExtractionHandler
+from src.scraper.application.services.content_extraction_handler import (
+    ContentExtractionHandler,
+)
 from src.scraper.application.services.content_stabilization_handler import (
     ContentStabilizationHandler,
 )
@@ -108,8 +110,10 @@ class RefactoredWebScrapingService:
 
             # Step 4: Extract and process content
             elements_to_remove = request.get_elements_to_remove()
-            extraction_result = await self.extraction_handler.extract_content(
-                browser_automation, request, final_url, elements_to_remove
+            extraction_result = (
+                await self.extraction_handler.extract_and_process_content(
+                    browser_automation, request, final_url, elements_to_remove
+                )
             )
 
             if not extraction_result.success:

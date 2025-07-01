@@ -8,6 +8,8 @@ from typing import Any, Dict, Optional
 from bs4 import BeautifulSoup
 from playwright.async_api import Page, Route, async_playwright
 
+from ...application.services.scraping_request import ScrapingRequest
+
 
 class PlaywrightScrapingStrategy:
     """Estratégia de scraping usando Playwright seguindo SRP"""
@@ -19,13 +21,13 @@ class PlaywrightScrapingStrategy:
         self.blocked_resource_types = config.blocked_resource_types
 
     async def scrape_url(
-        self, url: str, headers: Optional[Dict[str, Any]] = None
+        self, request: ScrapingRequest, headers: Optional[Dict[str, Any]] = None
     ) -> str:
         """
         Faz scraping de URL usando Playwright
 
         Args:
-            url: URL para fazer scraping
+            request: Objeto com todos os parâmetros da requisição
             headers: Headers opcionais
 
         Returns:
@@ -38,14 +40,16 @@ class PlaywrightScrapingStrategy:
             )
 
             try:
-                context = await browser.new_context()
+                context = await browser.new_context(extra_http_headers=headers)
                 page = await context.new_page()
 
                 if self.enable_resource_blocking:
                     await self._setup_resource_blocking(page)
 
                 response = await page.goto(
-                    url, wait_until="domcontentloaded", timeout=self.timeout * 1000
+                    request.url,
+                    wait_until="domcontentloaded",
+                    timeout=self.timeout * 1000,
                 )
 
                 if not response or response.status >= 400:

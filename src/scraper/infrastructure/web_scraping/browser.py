@@ -1,3 +1,5 @@
+from typing import Optional
+
 from playwright.async_api import Browser, Playwright
 from playwright_stealth import stealth_async
 
@@ -12,7 +14,7 @@ from src.core.constants import (
 async def launch_browser(
     playwright: Playwright,
     headless: bool = True,
-    user_agent: str | None = None,
+    user_agent: Optional[str] = None,
 ) -> Browser:
     """Launches a configured Playwright browser instance."""
     browser = await playwright.chromium.launch(headless=headless)

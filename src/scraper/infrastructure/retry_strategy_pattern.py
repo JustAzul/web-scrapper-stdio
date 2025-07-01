@@ -51,7 +51,10 @@ class RetryStrategyPattern:
                     f"Attempt {attempt + 1} failed: {e}. Retrying in {delay:.2f}s..."
                 )
                 await asyncio.sleep(delay)
-        raise last_exception
+
+        raise Exception(
+            f"All {self.max_retries + 1} attempts failed. Last error: {last_exception}"
+        ) from last_exception
 
     def execute_sync(self, sync_func: Callable[..., T], *args, **kwargs) -> T:
         """

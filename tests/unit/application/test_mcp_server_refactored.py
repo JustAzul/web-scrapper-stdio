@@ -162,5 +162,5 @@ class TestMCPParameterValidator:
 
         validated_args = validator.validate_prompt_parameters("scrape", arguments)
 
-        assert validated_args["url"] == "https://example.com"
-        assert validated_args["output_format"] == OutputFormat.TEXT
+        assert validated_args.url == "https://example.com"
+        assert validated_args.output_format == OutputFormat.TEXT

@@ -22,8 +22,8 @@ from src.core.constants import (
 from src.logger import Logger
 
 from ...application.contracts.browser_automation import (
+    BrowserAutomation,
     BrowserAutomationFactory,
-    BrowserAutomationInterface,
     BrowserConfiguration,
     BrowserResponse,
 )
@@ -31,12 +31,9 @@ from ...application.contracts.browser_automation import (
 logger = Logger(__name__)
 
 
-class PlaywrightBrowserAutomation(BrowserAutomationInterface):
+class PlaywrightBrowser(BrowserAutomation):
     """
-    Playwright implementation of browser automation interface.
-
-    Provides concrete implementation of browser operations using Playwright,
-    enabling headless and headed browser automation.
+    Playwright-based implementation of the BrowserAutomation interface.
     """
 
     def __init__(self, page: Page, context: BrowserContext, browser: Browser):
@@ -171,9 +168,7 @@ class PlaywrightBrowserFactory(BrowserAutomationFactory):
     allowing configuration of browser settings.
     """
 
-    async def create_browser(
-        self, config: BrowserConfiguration
-    ) -> BrowserAutomationInterface:
+    async def create_browser(self, config: BrowserConfiguration) -> BrowserAutomation:
         """
         Create Playwright browser instance with configuration.
 
@@ -210,4 +205,4 @@ class PlaywrightBrowserFactory(BrowserAutomationFactory):
         # Create page
         page = await context.new_page()
 
-        return PlaywrightBrowserAutomation(page, context, browser)
+        return PlaywrightBrowser(page, context, browser)

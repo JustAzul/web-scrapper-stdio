@@ -20,6 +20,7 @@ class BrowserResponse:
     error: Optional[str] = None
     status_code: Optional[int] = None
     url: Optional[str] = None
+    performance_metrics: Optional[Dict[str, any]] = None
 
 
 @dataclass(frozen=True)

@@ -7,7 +7,6 @@ import pytest
 from pydantic import ValidationError
 
 from src.mcp_server_refactored import ScrapeArgs
-from src.scraper.scrapper import Scraper
 
 
 class TestInputSanitization:
@@ -70,20 +69,23 @@ class TestInputSanitization:
         Playwright should handle this safely, but this test verifies that the
         application doesn't crash and no obvious XSS is reflected.
         """
+        from src.dependency_injection.application_bootstrap import ApplicationBootstrap
+
+        # Bootstrap the application to get the real services
+        bootstrap = ApplicationBootstrap()
+        web_scraping_service = bootstrap.get_web_scraping_service()
+
         httpserver.expect_request("/").respond_with_data(
             "<html><body><p>Hello</p></body></html>"
         )
 
-        args = ScrapeArgs(
-            url=httpserver.url_for("/"),
-            selector=malicious_css_selector,
-        )
-        scraper = Scraper()
-
         try:
             # We expect this might fail benignly (e.g., element not found)
             # or succeed without finding anything. The key is no crash/XSS.
-            result = await scraper.scrape(args)
+            result = await web_scraping_service.scrape_url(
+                url=httpserver.url_for("/"),
+                click_selector=malicious_css_selector,
+            )
             assert result is not None
             # The selector should not be reflected in the output
             if result["content"]:
@@ -92,5 +94,3 @@ class TestInputSanitization:
             # Any exception is fine, as long as it's not a security vulnerability.
             # We are just ensuring the application remains stable.
             assert "crash" not in str(e).lower()
-        finally:
-            await scraper.close()

@@ -23,10 +23,26 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from src.logger import Logger
 
+from .config import AntiDetectionConfig
+
 logger = Logger(__name__)
 
 # Secure random generator instance for anti-detection
 _secure_random = secrets.SystemRandom()
+
+# Public API for the anti_detection module
+__all__ = [
+    "AntiDetectionManager",
+    "AntiDetectionConfig",
+    "UserAgentRotator",
+    "HeaderRandomizer",
+    "TimingRandomizer",
+    "FingerprintReducer",
+    "create_anti_detection_manager",
+    "create_stealth_config",
+    "create_balanced_config",
+    "create_performance_config",
+]
 
 
 class BrowserType(Enum):
@@ -55,38 +71,6 @@ class UserAgentProfile:
     platform: Platform
     version: str
     market_share: float  # For weighted selection
-
-
-@dataclass
-class AntiDetectionConfig:
-    """Configuration for anti-detection measures."""
-
-    # User-Agent rotation
-    enable_user_agent_rotation: bool = True
-    user_agent_rotation_frequency: int = 5  # Requests per rotation
-
-    # Header randomization
-    enable_header_randomization: bool = True
-    randomize_accept_language: bool = True
-    randomize_accept_encoding: bool = True
-    randomize_connection_header: bool = True
-
-    # Timing randomization
-    enable_timing_randomization: bool = True
-    min_delay_seconds: float = 1.0
-    max_delay_seconds: float = 3.0
-    human_like_delays: bool = True
-
-    # Fingerprint reduction
-    enable_fingerprint_reduction: bool = True
-    disable_webgl: bool = True
-    disable_canvas_fingerprinting: bool = True
-    randomize_screen_resolution: bool = True
-
-    # Advanced features
-    enable_request_headers_variation: bool = True
-    enable_connection_pooling: bool = False
-    max_concurrent_requests: int = 3
 
 
 class UserAgentRotator:
@@ -298,30 +282,25 @@ class HeaderRandomizer:
 
 
 class TimingRandomizer:
-    """Manages timing randomization to simulate human behavior."""
+    """Randomizes request timing to simulate human behavior."""
 
     def __init__(self, config: AntiDetectionConfig):
         self.config = config
         self.logger = Logger(__name__)
-        self.last_request_time = 0.0
 
     async def apply_delay(self, force_delay: bool = False) -> float:
         """
-        Apply randomized delay between requests.
+        Apply a random delay to simulate human-like behavior.
 
         Args:
-            force_delay: Force delay regardless of configuration
+            force_delay: Force delay even if disabled in config
 
         Returns:
-            Actual delay applied in seconds
+            The applied delay in seconds
         """
         if not self.config.enable_timing_randomization and not force_delay:
             return 0.0
 
-        current_time = time.time()
-        time_since_last = current_time - self.last_request_time
-
-        # Calculate delay
         if self.config.human_like_delays:
             delay = self._get_human_like_delay()
         else:
@@ -329,18 +308,13 @@ class TimingRandomizer:
                 self.config.min_delay_seconds, self.config.max_delay_seconds
             )
 
-        # Adjust delay based on time since last request
-        if time_since_last < delay:
-            actual_delay = delay - time_since_last
-        else:
-            actual_delay = 0.0
+        # In case of force_delay, ensure there is a minimal delay
+        if force_delay and delay == 0.0:
+            delay = _secure_random.uniform(0.5, 1.5)
 
-        if actual_delay > 0:
-            self.logger.debug(f"Applying delay: {actual_delay:.2f}s")
-            await asyncio.sleep(actual_delay)
-
-        self.last_request_time = time.time()
-        return actual_delay
+        self.logger.debug(f"Applying delay of {delay:.2f} seconds")
+        await asyncio.sleep(delay)
+        return delay
 
     def _get_human_like_delay(self) -> float:
         """Generate human-like delay using normal distribution."""

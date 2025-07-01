@@ -232,12 +232,12 @@ class TestMagicNumberEliminationCompleteness:
         assert "1000" not in source or "MILLISECONDS_PER_SECOND" in source
 
     def test_no_magic_numbers_in_playwright_browser(self):
-        """Test that PlaywrightBrowserAutomation class has no magic numbers"""
+        """Test that PlaywrightBrowser class has no magic numbers"""
         import inspect
 
         import src.scraper.infrastructure.web_scraping.playwright_browser as playwright_module
 
-        source = inspect.getsource(playwright_module.PlaywrightBrowserAutomation)
+        source = inspect.getsource(playwright_module.PlaywrightBrowser)
 
         # Should not contain magic numbers directly
         magic_numbers = ["400", "500", "3000", "5000", "1000"]

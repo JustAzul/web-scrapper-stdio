@@ -5,10 +5,12 @@ Objetivo: Quebrar God Class (375 linhas) em classes menores seguindo SRP
 FASE RED: Testes que falham primeiro - definindo comportamento esperado após refatoração
 """
 
-import time
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+
+# Import ScrapingRequest for updated test methods
+from src.scraper.application.services.scraping_request import ScrapingRequest
 
 
 class TestCircuitBreakerPattern:
@@ -69,20 +71,29 @@ class TestCircuitBreakerPattern:
             CircuitBreakerPattern,
         )
 
-        breaker = CircuitBreakerPattern(
-            failure_threshold=2, recovery_timeout=1
-        )  # 1 segundo
+        # Mock time to control it precisely
+        with patch("time.time") as mock_time:
+            # 1. Initialize breaker and set initial time
+            mock_time.return_value = 100.0
+            breaker = CircuitBreakerPattern(failure_threshold=2, recovery_timeout=5)
 
-        # Força abertura do circuit breaker
-        breaker.record_failure()
-        breaker.record_failure()
-        assert breaker.state == "OPEN"
+            # 2. Force the circuit to open
+            breaker.record_failure()
+            breaker.record_failure()
+            assert breaker.state == "OPEN"
+            assert breaker.last_failure_time == 100.0
 
-        # Simula passagem do tempo
-        time.sleep(1.1)
+            # 3. Check that it's open before recovery timeout
+            mock_time.return_value = 104.0  # 4 seconds later
+            assert breaker.is_open is True
+            assert breaker.state == "OPEN"  # State should not change yet
 
-        # Deve estar HALF_OPEN agora
-        assert breaker.is_open is False  # Propriedade deve transicionar para HALF_OPEN
+            # 4. Move time past the recovery timeout
+            mock_time.return_value = 105.1  # 5.1 seconds later
+            assert breaker.is_open is False  # Should now be HALF_OPEN
+
+            # 5. Verify the state transitioned
+            assert breaker.state == "HALF_OPEN"
 
 
 class TestRetryStrategyPattern:
@@ -100,7 +111,7 @@ class TestRetryStrategyPattern:
         async def successful_operation():
             return "success"
 
-        result = await strategy.execute(successful_operation)
+        result = await strategy.execute_async(successful_operation)
         assert result == "success"
 
     @pytest.mark.asyncio
@@ -123,7 +134,7 @@ class TestRetryStrategyPattern:
                 raise Exception(f"Attempt {attempt_count} failed")
             return "success_after_retries"
 
-        result = await strategy.execute(failing_then_success)
+        result = await strategy.execute_async(failing_then_success)
         assert result == "success_after_retries"
         assert attempt_count == 3
 
@@ -140,7 +151,35 @@ class TestRetryStrategyPattern:
             raise Exception("Always fails")
 
         with pytest.raises(Exception, match="Always fails"):
-            await strategy.execute(always_failing)
+            await strategy.execute_async(always_failing)
+
+    @pytest.mark.asyncio
+    async def test_retry_strategy_uses_exponential_backoff(self, caplog):
+        """Test that the retry strategy uses exponential backoff and fails after max retries."""
+        from src.scraper.infrastructure.retry_strategy_pattern import (
+            RetryStrategyPattern,
+        )
+
+        # Mock do scraping strategy para teste
+        scraping_strategy = AsyncMock()
+        scraping_strategy.scrape_url.side_effect = Exception("Strategy failed")
+
+        # Mock do retry strategy para teste
+        retry_strategy = RetryStrategyPattern(max_retries=3, initial_delay=0.1)
+
+        # A operação deve falhar após todas as tentativas
+        with pytest.raises(
+            Exception, match="All 4 attempts failed. Last error: Strategy failed"
+        ):
+            await retry_strategy.execute_async(
+                scraping_strategy.scrape_url, "https://example.com"
+            )
+
+        # Verifica se as tentativas foram logadas com backoff exponencial
+        assert "Attempt 1 failed: Strategy failed. Retrying in 0.10s..." in caplog.text
+        assert "Attempt 2 failed: Strategy failed. Retrying in 0.20s..." in caplog.text
+        assert "Attempt 3 failed: Strategy failed. Retrying in 0.40s..." in caplog.text
+        assert "Final attempt 4 failed: Strategy failed" in caplog.text
 
 
 class TestScrapingMetricsCollector:
@@ -265,7 +304,9 @@ class TestPlaywrightScrapingStrategy:
 
             mock_playwright.return_value.__aenter__.return_value = mock_p
 
-            result = await strategy.scrape_url("https://example.com")
+            # Create ScrapingRequest object instead of passing string
+            request = ScrapingRequest(url="https://example.com")
+            result = await strategy.scrape_url(request)
 
             assert "Test content" in result
             mock_page.goto.assert_called_once()
@@ -313,7 +354,9 @@ class TestRequestsScrapingStrategy:
                 mock_response
             )
 
-            result = await strategy.scrape_url("https://example.com")
+            # Create ScrapingRequest object instead of passing string
+            request = ScrapingRequest(url="https://example.com")
+            result = await strategy.scrape_url(request)
 
             assert "HTTP content" in result
 
@@ -368,7 +411,9 @@ class TestFallbackOrchestrator:
             "<html>Success</html>"
         )
 
-        result = await orchestrator.scrape_url("https://example.com")
+        # Create ScrapingRequest object instead of passing string
+        request = ScrapingRequest(url="https://example.com")
+        result = await orchestrator.scrape_url(request)
 
         assert result.success is True
         assert "Success" in result.content
@@ -400,7 +445,9 @@ class TestFallbackOrchestrator:
             "<html>Fallback success</html>"
         )
 
-        result = await orchestrator.scrape_url("https://example.com")
+        # Create ScrapingRequest object instead of passing string
+        request = ScrapingRequest(url="https://example.com")
+        result = await orchestrator.scrape_url(request)
 
         assert result.success is True
         assert "Fallback success" in result.content
@@ -420,7 +467,9 @@ class TestFallbackOrchestrator:
 
         orchestrator = FallbackOrchestrator(circuit_breaker=circuit_breaker)
 
-        result = await orchestrator.scrape_url("https://example.com")
+        # Create ScrapingRequest object instead of passing string
+        request = ScrapingRequest(url="https://example.com")
+        result = await orchestrator.scrape_url(request)
 
         assert result.success is False
         assert "Circuit breaker is open" in result.error
@@ -471,10 +520,10 @@ class TestBackwardCompatibility:
 
         # RetryStrategyPattern - apenas retry
         strategy = RetryStrategyPattern(max_retries=3, initial_delay=1.0)
-        assert hasattr(strategy, "execute")
+        assert hasattr(strategy, "execute_async")
         assert not hasattr(
-            strategy, "record_failure"
-        )  # Não deve ter outras responsabilidades
+            strategy, "can_execute"
+        )  # Não deve ter responsabilidade de circuit breaker
 
         # ScrapingMetricsCollector - apenas métricas
         collector = ScrapingMetricsCollector(enabled=True)

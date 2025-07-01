@@ -135,7 +135,9 @@ class TestRetryManager:
 
         # Should retry network errors
         assert manager._should_retry(NetworkError("Network failed")) is True
-        assert manager._should_retry(TimeoutError("Timeout")) is True
+        assert (
+            manager._should_retry(TimeoutError(operation="test", timeout=10.0)) is True
+        )
         assert manager._should_retry(ConnectionError("Connection failed")) is True
 
         # Should not retry programming errors

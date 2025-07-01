@@ -1,12 +1,10 @@
 from dataclasses import dataclass
 from typing import Optional
-from unittest import mock
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
 from src.output_format_handler import OutputFormat
-from src.scraper.application.contracts.browser_automation import BrowserResponse
 
 
 @dataclass
@@ -23,26 +21,6 @@ class TestWebScrapingService:
     """Test suite for WebScrapingService that orchestrates the web scraping process"""
 
     @pytest.fixture
-    def mock_browser_automation(self):
-        """Mock browser automation interface"""
-        mock = AsyncMock()
-        mock.navigate_to_url.return_value = BrowserResponse(
-            success=True, url="https://example.com"
-        )
-        mock.get_page_content.return_value = "<html><body>Test content</body></html>"
-        mock.wait_for_content_stabilization.return_value = True
-        mock.click_element.return_value = True
-        mock.close.return_value = None
-        return mock
-
-    @pytest.fixture
-    def mock_browser_factory(self, mock_browser_automation):
-        """Mock browser automation factory"""
-        factory = AsyncMock()
-        factory.create_browser.return_value = mock_browser_automation
-        return factory
-
-    @pytest.fixture
     def mock_content_processor(self):
         """Mock content processing service"""
         mock = Mock()
@@ -53,12 +31,16 @@ class TestWebScrapingService:
         return mock
 
     @pytest.fixture
-    def mock_configuration_service(self):
-        """Mock configuration service"""
-        mock = Mock()
-        mock.get_browser_config.return_value = Mock(timeout_seconds=30)
-        mock.get_scraping_config = Mock()
-        mock.get_elements_to_remove = Mock(return_value=["script", "style"])
+    def mock_orchestrator(self):
+        """Mock ScrapingOrchestrator"""
+        mock = AsyncMock()
+        # Configure a mock scrape_url to return a successful result
+        mock.scrape_url.return_value = Mock(
+            success=True,
+            content="<html><body>Test content</body></html>",
+            error=None,
+            final_url="https://example.com",
+        )
         return mock
 
     @patch("src.scraper.application.services.web_scraping_service.apply_rate_limiting")
@@ -66,9 +48,8 @@ class TestWebScrapingService:
     async def test_successful_scraping_workflow(
         self,
         mock_rate_limiting,
-        mock_browser_factory,
         mock_content_processor,
-        mock_configuration_service,
+        mock_orchestrator,
     ):
         """Test successful end-to-end scraping workflow"""
         from src.scraper.application.services.web_scraping_service import (
@@ -76,9 +57,6 @@ class TestWebScrapingService:
         )
 
         mock_rate_limiting.return_value = None
-        mock_browser_factory.create_browser.return_value.navigate_to_url.return_value = BrowserResponse(
-            success=True, content="<html><body>Test content</body></html>", error=None
-        )
         mock_content_processor.process_html.return_value = (
             "Test Title",
             "Clean HTML",
@@ -90,9 +68,8 @@ class TestWebScrapingService:
         )
 
         service = WebScrapingService(
-            browser_factory=mock_browser_factory,
             content_processor=mock_content_processor,
-            configuration_service=mock_configuration_service,
+            orchestrator=mock_orchestrator,
         )
 
         result = await service.scrape_url(
@@ -105,6 +82,7 @@ class TestWebScrapingService:
         assert result["final_url"] == "https://example.com"
         assert result["content"] == "# Test Title\n\nTest content"
         assert result["error"] is None
+        mock_orchestrator.scrape_url.assert_called_once()
         mock_content_processor.process_html.assert_called_once()
         mock_content_processor.format_content.assert_called_once()
 
@@ -113,9 +91,8 @@ class TestWebScrapingService:
     async def test_navigation_error_handling(
         self,
         mock_rate_limiting,
-        mock_browser_factory,
         mock_content_processor,
-        mock_configuration_service,
+        mock_orchestrator,
     ):
         """Test handling of navigation errors"""
         from src.scraper.application.services.web_scraping_service import (
@@ -123,14 +100,16 @@ class TestWebScrapingService:
         )
 
         mock_rate_limiting.return_value = None
-        mock_browser_factory.create_browser.return_value.navigate_to_url.return_value = BrowserResponse(
-            success=False, content=None, error="Navigation failed"
+        mock_orchestrator.scrape_url.return_value = Mock(
+            success=False,
+            content=None,
+            error="Navigation failed",
+            final_url="https://invalid.com",
         )
 
         service = WebScrapingService(
-            browser_factory=mock_browser_factory,
             content_processor=mock_content_processor,
-            configuration_service=mock_configuration_service,
+            orchestrator=mock_orchestrator,
         )
 
         result = await service.scrape_url(url="https://invalid.com")
@@ -145,9 +124,8 @@ class TestWebScrapingService:
     async def test_content_processing_error_handling(
         self,
         mock_rate_limiting,
-        mock_browser_factory,
         mock_content_processor,
-        mock_configuration_service,
+        mock_orchestrator,
     ):
         """Test handling of content processing errors"""
         from src.scraper.application.services.web_scraping_service import (
@@ -155,8 +133,11 @@ class TestWebScrapingService:
         )
 
         mock_rate_limiting.return_value = None
-        mock_browser_factory.create_browser.return_value.navigate_to_url.return_value = BrowserResponse(
-            success=True, content="<html><body>Test</body></html>", error=None
+        mock_orchestrator.scrape_url.return_value = Mock(
+            success=True,
+            content="<html><body>Test</body></html>",
+            error=None,
+            final_url="https://example.com",
         )
         mock_content_processor.process_html.return_value = (
             None,
@@ -166,9 +147,8 @@ class TestWebScrapingService:
         )
 
         service = WebScrapingService(
-            browser_factory=mock_browser_factory,
             content_processor=mock_content_processor,
-            configuration_service=mock_configuration_service,
+            orchestrator=mock_orchestrator,
         )
 
         result = await service.scrape_url(url="https://example.com")
@@ -181,9 +161,8 @@ class TestWebScrapingService:
     async def test_content_too_short_validation(
         self,
         mock_rate_limiting,
-        mock_browser_factory,
         mock_content_processor,
-        mock_configuration_service,
+        mock_orchestrator,
     ):
         """Test validation when content is too short"""
         from src.scraper.application.services.web_scraping_service import (
@@ -191,7 +170,12 @@ class TestWebScrapingService:
         )
 
         mock_rate_limiting.return_value = None
-        mock_browser_factory.create_browser.return_value.get_page_content.return_value = "<html><body>Hi</body></html>"
+        mock_orchestrator.scrape_url.return_value = Mock(
+            success=True,
+            content="<html><body>Hi</body></html>",
+            error=None,
+            final_url="https://example.com",
+        )
         mock_content_processor.process_html.return_value = (
             None,
             None,
@@ -200,9 +184,8 @@ class TestWebScrapingService:
         )
 
         service = WebScrapingService(
-            browser_factory=mock_browser_factory,
             content_processor=mock_content_processor,
-            configuration_service=mock_configuration_service,
+            orchestrator=mock_orchestrator,
         )
 
         result = await service.scrape_url(url="https://example.com")
@@ -215,9 +198,8 @@ class TestWebScrapingService:
     async def test_final_url_normalization_from_browser_response(
         self,
         mock_rate_limiting,
-        mock_browser_factory,
         mock_content_processor,
-        mock_configuration_service,
+        mock_orchestrator,
     ):
         """Test that the final_url from the browser response is used."""
         from src.scraper.application.services.web_scraping_service import (
@@ -225,8 +207,11 @@ class TestWebScrapingService:
         )
 
         mock_rate_limiting.return_value = None
-        mock_browser_factory.create_browser.return_value.navigate_to_url.return_value = BrowserResponse(
-            success=True, url="https://final-url.com"
+        mock_orchestrator.scrape_url.return_value = Mock(
+            success=True,
+            final_url="https://final-url.com",
+            content="Content",
+            error=None,
         )
         mock_content_processor.process_html.return_value = (
             "Title",
@@ -235,14 +220,13 @@ class TestWebScrapingService:
             None,
         )
         service = WebScrapingService(
-            browser_factory=mock_browser_factory,
             content_processor=mock_content_processor,
-            configuration_service=mock_configuration_service,
+            orchestrator=mock_orchestrator,
         )
         result = await service.scrape_url(url="https://example.com/", custom_timeout=10)
         assert result["final_url"] == "https://final-url.com"
         assert result["title"] == "Title"
         assert result["error"] is None
         mock_content_processor.process_html.assert_called_once_with(
-            mock.ANY, mock.ANY, "https://final-url.com"
+            "Content", [], "https://final-url.com"
         )

@@ -8,26 +8,47 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from bs4 import BeautifulSoup
 
-from src.logger import Logger
 from src.core.constants import BYTES_PER_MB, DEFAULT_CHUNK_SIZE_THRESHOLD
+from src.logger import Logger
+
 from .chunking_strategy import ChunkingStrategy
+from .content_processor import ContentProcessor
 from .fallback_handler import FallbackHandler
 from .memory_monitor import MemoryMonitor
+from .processing_metrics import ProcessingMetrics
+
 
 class RefactoredChunkedHTMLProcessor:
-    """
-        # Dependency Injection para testabilidade
+    def __init__(
+        self,
+        parser: str = "lxml",
+        extra_noise_cleanup: bool = False,
+        memory_limit_mb: int = 150,
+        enable_chunking: bool = True,
+        chunk_size_threshold: int = DEFAULT_CHUNK_SIZE_THRESHOLD,
+        fallback_enabled: bool = True,
+        memory_monitor: Optional[MemoryMonitor] = None,
+        metrics: Optional[ProcessingMetrics] = None,
+        chunking_strategy: Optional[ChunkingStrategy] = None,
         content_processor: Optional[ContentProcessor] = None,
         fallback_handler: Optional[FallbackHandler] = None,
+        logger: Optional[Logger] = None,
+    ):
         """
-        Inicializa processor com injeção de dependências
-            chunk_size_threshold: Threshold para usar chunking
-            memory_limit_mb: Limite de memória em MB
-            parser: Parser HTML a usar
-            extra_noise_cleanup: Se deve fazer limpeza extra de ruído
-            metrics: Coletor de métricas (injetado)
-            chunking_strategy: Estratégia de chunking (injetado)
-            fallback_handler: Handler de fallback (injetado)
+        Initializes the processor with dependency injection.
+        Args:
+            parser: HTML parser to use.
+            extra_noise_cleanup: Whether to perform extra noise cleanup.
+            memory_limit_mb: Memory limit in MB.
+            enable_chunking: Whether to enable chunking.
+            chunk_size_threshold: Threshold to use chunking.
+            fallback_enabled: Whether to enable fallback handler.
+            memory_monitor: Injected memory monitor.
+            metrics: Injected metrics collector.
+            chunking_strategy: Injected chunking strategy.
+            content_processor: Injected content processor.
+            fallback_handler: Injected fallback handler.
+            logger: Injected logger.
         """
         # Configurações básicas
         self.parser = parser
@@ -36,6 +57,7 @@ class RefactoredChunkedHTMLProcessor:
         # Dependency Injection - permite mocking para testes
         self.memory_monitor = memory_monitor or MemoryMonitor(
             memory_limit_mb=memory_limit_mb, enabled=True
+        )
         self.metrics = metrics or ProcessingMetrics(enabled=True)
         self.chunking_strategy = chunking_strategy or ChunkingStrategy(
             chunk_size_threshold=chunk_size_threshold, enable_chunking=enable_chunking
@@ -51,7 +73,7 @@ class RefactoredChunkedHTMLProcessor:
         self.enable_chunking = enable_chunking
         self.fallback_enabled = fallback_enabled
 
-        self.logger = logger
+        self.logger = logger or Logger(__name__)
 
     def extract_content(
         self, html_content: str, elements_to_remove: List[str], url: str

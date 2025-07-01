@@ -53,5 +53,9 @@ def test_scraping_orchestrator_initialization():
     )
 
     # We will add mock dependencies later. For now, just check instantiation.
-    orchestrator = ScrapingOrchestrator()
+    orchestrator = ScrapingOrchestrator(
+        url_validator=MagicMock(),
+        content_extractor=AsyncMock(),
+        output_formatter=MagicMock(),
+    )
     assert orchestrator is not None

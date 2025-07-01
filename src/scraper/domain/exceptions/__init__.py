@@ -196,10 +196,17 @@ class ResourceError(ScraperError):
     """Raised when system resources are exhausted."""
 
     def __init__(self, resource_type: str, message: str, **kwargs):
+        # Pop the context from kwargs to merge it
+        incoming_context = kwargs.pop("context", {})
+
+        # Create the base context and update it with the incoming context
+        base_context = {"resource_type": resource_type}
+        base_context.update(incoming_context)
+
         super().__init__(
             message=f"Resource exhausted ({resource_type}): {message}",
             error_code="RESOURCE_EXHAUSTED",
-            context={"resource_type": resource_type},
+            context=base_context,
             recoverable=True,
             retry_after=10.0,
             **kwargs,

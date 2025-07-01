@@ -96,6 +96,7 @@ class FallbackBrowserAutomation(BrowserAutomation):
                     error=None,
                     status_code=status_code,
                     url=result.final_url or url,
+                    performance_metrics=result.performance_metrics,
                 )
             else:
                 return BrowserResponse(
@@ -104,6 +105,7 @@ class FallbackBrowserAutomation(BrowserAutomation):
                     error=result.error,
                     status_code=None,
                     url=url,
+                    performance_metrics=result.performance_metrics,
                 )
 
         except Exception as e:

@@ -6,13 +6,14 @@ Parte da refatoração T001 - Quebrar extract_text_from_url seguindo SRP
 from typing import Optional
 
 from bs4 import BeautifulSoup
+from markdownify import markdownify as md
 
+from src.enums import OutputFormat
 from src.logger import Logger
 from src.output_format_handler import (
-    OutputFormat,
+    TRUNCATION_NOTICE,
     to_markdown,
     to_text,
-    truncate_content,
 )
 
 logger = Logger(__name__)
@@ -46,6 +47,8 @@ class OutputFormatter:
                 return self.format_text(soup) if soup else content
             elif output_format is OutputFormat.HTML:
                 return self.format_html(content, soup)
+            elif output_format is OutputFormat.MARKDOWN:
+                return md(content, heading_style="ATX")
             else:  # MARKDOWN (default)
                 return self.format_markdown(content)
 
@@ -101,39 +104,22 @@ class OutputFormatter:
             Conteúdo HTML formatado
         """
         try:
-            if soup and soup.body:
-                return str(soup.body)
             return clean_html
         except Exception as e:
             self.logger.error(f"Erro formatando HTML: {e}")
             return clean_html
 
-    def truncate(self, content: str, max_length: Optional[int] = None) -> str:
-        """
-        Trunca conteúdo se necessário
-
-        Args:
-            content: Conteúdo para truncar
-            max_length: Comprimento máximo (None = sem truncamento)
-
-        Returns:
-            Conteúdo truncado se necessário
-        """
-        if max_length is None:
-            return content
-
-        try:
-            result = truncate_content(content, max_length)
-            return (
-                str(result)
-                if result is not None
-                else content[:max_length]
-                if len(content) > max_length
-                else content
-            )
-        except Exception as e:
-            self.logger.error(f"Erro truncando conteúdo: {e}")
-            return content[:max_length] if len(content) > max_length else content
+    def truncate(self, content: str, max_length: int) -> str:
+        """Truncates content to a maximum length, including notice."""
+        if max_length and len(content) > max_length:
+            notice_length = len(TRUNCATION_NOTICE)
+            # Ensure we have space for the notice
+            if max_length > notice_length:
+                return content[: max_length - notice_length] + TRUNCATION_NOTICE
+            else:
+                # If max_length is smaller than notice, just truncate to max_length
+                return content[:max_length]
+        return content
 
     def format_and_truncate(
         self,

@@ -3,19 +3,20 @@ ContentExtractor - Responsabilidade única: Extração de conteúdo de páginas 
 Parte da refatoração T001 - Quebrar extract_text_from_url seguindo SRP
 """
 
-import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, List, Optional
 
+from bs4 import BeautifulSoup
 from playwright.async_api import Page
 
 from src.config import DEFAULT_MIN_CONTENT_LENGTH, DEFAULT_MIN_CONTENT_LENGTH_SEARCH_APP
-from src.logger import Logger
-from src.scraper import extract_clean_html
 from src.core.constants import DEFAULT_CLICK_TIMEOUT_MS
-from src.scraper.infrastructure.external.content_selectors import _wait_for_content_stabilization
-from src.scraper.infrastructure.external.errors import _handle_cloudflare_block
+from src.logger import Logger
+from src.scraper.infrastructure.external.content_selectors import (
+    _wait_for_content_stabilization,
+)
 from src.scraper.infrastructure.external.html_utils import _is_content_too_short
+from src.scraper.utils import extract_clean_html
 
 logger = Logger(__name__)
 
@@ -54,74 +55,55 @@ class ExtractionConfig:
 
 @dataclass
 class ExtractionResult:
-    """Resultado da extração de conteúdo"""
+    """Dataclass for content extraction results."""
 
     title: Optional[str] = None
     content: Optional[str] = None
     clean_html: Optional[str] = None
     final_url: Optional[str] = None
     error: Optional[str] = None
-    soup: Optional[Any] = None
+    soup: Optional[Any] = field(default=None, repr=False)
 
 
 class ContentExtractor:
-    """Extrai conteúdo de páginas web seguindo Single Responsibility Principle"""
+    """Extracts content from a browser page."""
 
-    def __init__(self):
-        self.logger = logger
-
-    async def extract(self, page: Page, config: ExtractionConfig) -> ExtractionResult:
-        """
-        Extrai conteúdo da página
-
-        Args:
-            page: Instância da página Playwright
-            config: Configuração da extração
-
-        Returns:
-            Resultado da extração
-        """
+    async def extract(self, page: Any, config: Any) -> ExtractionResult:
+        """Extracts content from a page, returning an ExtractionResult."""
+        final_url = page.url
         try:
-            # Aguardar estabilização do conteúdo
-            content_found = await self._wait_for_content(page, config)
-            if not content_found:
+            html_content = await page.content()
+            if not html_content:
                 return ExtractionResult(
-                    final_url=page.url, error="[ERROR] <body> tag not found."
+                    error="[ERROR] Page content is empty.", final_url=final_url
                 )
 
-            # Clicar em elemento se especificado
-            if config.click_selector:
-                await self._click_element(page, config.click_selector)
+            soup = BeautifulSoup(html_content, "lxml")
+            title = soup.title.string if soup.title else "No title found"
 
-            # Aguardar período de graça
-            await asyncio.sleep(config.grace_period_seconds)
+            # Simple text extraction for now
+            text_content = soup.get_text(separator=" ", strip=True)
 
-            # Obter conteúdo HTML
-            html_content = await page.content()
-
-            # Verificar bloqueio Cloudflare
-            is_blocked, cf_error = _handle_cloudflare_block(html_content, page.url)
-            if is_blocked:
-                return ExtractionResult(final_url=page.url, error=cf_error)
-
-            # Extrair e limpar HTML
-            result = await self._extract_and_clean_content(
-                html_content, config, page.url
-            )
-
-            return result
-
-        except Exception as e:
-            self.logger.error(f"Erro durante extração de {page.url}: {e}")
             return ExtractionResult(
-                final_url=page.url,
-                error=f"[ERROR] Erro inesperado durante extração: {str(e)}",
+                title=title,
+                content=text_content,
+                clean_html=html_content,
+                final_url=final_url,
+                soup=soup,
+            )
+        except Exception as e:
+            logger.error(f"Erro durante extração de {final_url}: {e}")
+            return ExtractionResult(
+                error=f"[ERROR] Erro inesperado durante extração: '{e}'",
+                final_url=final_url,
             )
 
     async def _wait_for_content(self, page: Page, config: ExtractionConfig) -> bool:
         """Aguarda conteúdo estabilizar na página"""
         try:
-            from src.scraper.infrastructure.web_scraping.rate_limiting import get_domain_from_url
+            from src.scraper.infrastructure.web_scraping.rate_limiting import (
+                get_domain_from_url,
+            )
 
             domain = get_domain_from_url(page.url)
 
@@ -188,7 +170,9 @@ class ContentExtractor:
         if config.min_content_length is not None:
             return config.min_content_length
 
-        from src.scraper.infrastructure.web_scraping.rate_limiting import get_domain_from_url
+        from src.scraper.infrastructure.web_scraping.rate_limiting import (
+            get_domain_from_url,
+        )
 
         domain = get_domain_from_url(url)
 
