@@ -1,13 +1,11 @@
 """
 Standardized Exception Hierarchy for Web Scraper MCP.
 
-This module implements a comprehensive exception hierarchy following best practices:
+This module implements an exception hierarchy following best practices:
 1. Base exception with error codes and context
 2. Specific exception types for different error scenarios
 3. Consistent error handling patterns
 4. Detailed error context for debugging
-
-TDD Implementation: GREEN phase - comprehensive exception system.
 """
 
 from typing import Any, Dict, Optional
@@ -311,7 +309,8 @@ def get_retry_delay(exception: Exception) -> Optional[float]:
         exception: Exception to analyze
 
     Returns:
-        Optional[float]: Recommended retry delay in seconds, or None if no retry recommended
+        Optional[float]: Recommended retry delay in seconds, or None if no retry
+        recommended
     """
     if isinstance(exception, ScraperError):
         return exception.retry_after

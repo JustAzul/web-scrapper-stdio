@@ -1,6 +1,5 @@
 """
 ContentExtractor - Single Responsibility: Extraction of content from web pages
-Part of refactoring T001 - Break up extract_text_from_url following SRP
 """
 
 from dataclasses import dataclass, field
