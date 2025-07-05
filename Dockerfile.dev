@@ -10,6 +10,9 @@ ENV PYTHONUNBUFFERED 1
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Instalar netcat antes de trocar de usuário
+RUN apt-get update && apt-get install -y netcat && rm -rf /var/lib/apt/lists/*
+
 # Now, create a non-root user for security
 RUN useradd --create-home --shell /bin/bash appuser
 

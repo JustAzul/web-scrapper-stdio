@@ -15,7 +15,7 @@ services:
     cap_add:
       - SYS_ADMIN
     init: true
-    command: pytest tests/unit/application tests/unit/refactor tests/unit/scraper tests/functional
+    command: pytest tests/unit tests/functional
     stop_signal: SIGINT
 
   test-all:
@@ -59,7 +59,7 @@ services:
     cap_add:
       - SYS_ADMIN
     init: true
-    command: pytest tests/unit/application tests/unit/infrastructure tests/unit/refactor tests/unit/scraper tests/functional
+    command: pytest tests/unit tests/functional
     stop_signal: SIGINT
 
   test-e2e:
@@ -70,3 +70,49 @@ services:
       - ./tests:/home/appuser/app/tests
       - ./src:/home/appuser/app/src
     command: pytest tests/e2e/test_mcp_server.py
+
+  mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: mcp-server
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./src:/home/appuser/app/src
+    working_dir: /home/appuser/app
+    command: python3 src/mcp_server.py
+    ports:
+      - "8000:8000"
+    shm_size: '2gb'
+    ipc: host
+    cap_add:
+      - SYS_ADMIN
+    init: true
+    networks:
+      - mcpnet
+
+  test-integration:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: mcp-test-integration
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/home/appuser/app
+    volumes:
+      - ./tests:/home/appuser/app/tests
+      - ./src:/home/appuser/app/src
+    working_dir: /home/appuser/app
+    entrypoint: ["pytest", "tests/integration/test_mcp_server_stdio.py"]
+    shm_size: '2gb'
+    ipc: host
+    cap_add:
+      - SYS_ADMIN
+    init: true
+    networks:
+      - mcpnet
+
+networks:
+  mcpnet:
+    driver: bridge
