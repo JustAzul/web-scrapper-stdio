@@ -30,6 +30,7 @@ class ExtractionConfig:
             "figcaption",
         ]
     )
+    custom_elements_to_remove: List[str] = field(default_factory=list)
     use_chunked_processing: bool = True
     memory_limit_mb: int = 150
     parser: str = "html.parser"
@@ -38,7 +39,15 @@ class ExtractionConfig:
     extra_noise_cleanup: bool = False
 
     def __post_init__(self):
-        """Valida configuração após inicialização"""
+        """Valida configuração após inicialização e combina elementos para remoção."""
+        # Combina a lista padrão com a lista customizada
+        if self.custom_elements_to_remove:
+            # Evita duplicatas, embora seja improvável
+            combined = set(self.elements_to_remove) | set(
+                self.custom_elements_to_remove
+            )
+            self.elements_to_remove = list(combined)
+
         if self.memory_limit_mb <= 0:
             raise ValueError("memory_limit_mb must be positive")
 

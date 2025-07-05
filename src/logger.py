@@ -2,10 +2,11 @@ import logging
 import os
 import sys
 
+
 def get_logger(name="mcp-web-scrapper"):
     """
     Configures and returns a standardized logger instance.
-    This replaces the complex singleton class with a simple factory function.
+    This module provides a logger instance.
     """
     logger = logging.getLogger(name)
 

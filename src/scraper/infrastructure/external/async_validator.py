@@ -75,7 +75,8 @@ class AsyncConsistencyValidator:
                                         "function": node.name,
                                         "line": call["line"],
                                         "violation": (
-                                            f"Sync I/O call '{call['call']}' in async function"
+                                            f"Sync I/O call '{call['call']}' in "
+                                            "async function"
                                         ),
                                         "suggestion": "Replace with async equivalent",
                                     }

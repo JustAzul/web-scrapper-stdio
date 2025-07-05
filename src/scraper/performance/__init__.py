@@ -1,7 +1,7 @@
 """
 Performance Monitoring and Optimization System for Web Scraper MCP.
 
-This module implements comprehensive performance monitoring, analysis, and optimization
+This module implements performance monitoring, analysis, and optimization
 capabilities following T015 requirements:
 
 1. Performance metrics collection and analysis
@@ -9,7 +9,6 @@ capabilities following T015 requirements:
 3. Memory usage monitoring and optimization
 4. Request timing and throughput analysis
 5. Automated performance recommendations
-TDD Implementation: GREEN phase - comprehensive performance system.
 """
 
 import gc
@@ -211,7 +210,10 @@ class PerformanceAnalyzer:
                     category="timing",
                     priority="MEDIUM",
                     issue=f"Navigation time ({metrics.navigation_time:.1f}s) is slow",
-                    recommendation="Enable resource blocking for images/CSS/fonts, reduce timeout values",
+                    recommendation=(
+                        "Enable resource blocking for images/CSS/fonts, "
+                        "reduce timeout values"
+                    ),
                     potential_improvement="20-40% navigation improvement",
                     implementation_effort="LOW",
                 )
@@ -301,7 +303,10 @@ class PerformanceAnalyzer:
                     category="content",
                     priority="MEDIUM",
                     issue=f"Content size ({content_size_mb:.1f}MB) is very large",
-                    recommendation="Enable resource blocking, implement content filtering, use streaming processing",
+                    recommendation=(
+                        "Enable resource blocking, implement content filtering, "
+                        "use streaming processing"
+                    ),
                     potential_improvement="Faster processing, reduced memory usage",
                     implementation_effort="MEDIUM",
                 )
@@ -313,8 +318,12 @@ class PerformanceAnalyzer:
                 PerformanceRecommendation(
                     category="content",
                     priority="LOW",
-                    issue=f"Low content compression ratio ({metrics.compression_ratio:.2f})",
-                    recommendation="Improve content filtering, remove more noise elements",
+                    issue=(
+                        f"Low content compression ratio ({metrics.compression_ratio:.2f})"
+                    ),
+                    recommendation=(
+                        "Improve content filtering, remove more noise elements"
+                    ),
                     potential_improvement="Better content quality, smaller output",
                     implementation_effort="LOW",
                 )
@@ -334,8 +343,14 @@ class PerformanceAnalyzer:
                 PerformanceRecommendation(
                     category="requests",
                     priority="MEDIUM",
-                    issue=f"High retry count ({metrics.retry_count}) indicates reliability issues",
-                    recommendation="Implement exponential backoff, improve error handling, check network stability",
+                    issue=(
+                        f"High retry count ({metrics.retry_count}) indicates "
+                        "reliability issues"
+                    ),
+                    recommendation=(
+                        "Implement exponential backoff, improve error handling, "
+                        "check network stability"
+                    ),
                     potential_improvement="Better reliability, faster completion",
                     implementation_effort="MEDIUM",
                 )
@@ -349,9 +364,17 @@ class PerformanceAnalyzer:
                     PerformanceRecommendation(
                         category="requests",
                         priority="HIGH",
-                        issue=f"High failure rate ({failure_rate:.1%}) indicates systemic issues",
-                        recommendation="Review error handling, implement circuit breaker, improve fallback strategies",
-                        potential_improvement="Higher success rate, better user experience",
+                        issue=(
+                            f"High failure rate ({failure_rate:.1%}) indicates "
+                            "systemic issues"
+                        ),
+                        recommendation=(
+                            "Review error handling, implement circuit breaker, "
+                            "improve fallback strategies"
+                        ),
+                        potential_improvement=(
+                            "Higher success rate, better user experience"
+                        ),
                         implementation_effort="HIGH",
                     )
                 )
@@ -371,7 +394,9 @@ class PerformanceAnalyzer:
                     category="optimizations",
                     priority="MEDIUM",
                     issue="Caching not utilized for slow operations",
-                    recommendation="Implement result caching for repeated URLs or content patterns",
+                    recommendation=(
+                        "Implement result caching for repeated URLs or content patterns"
+                    ),
                     potential_improvement="50-80% improvement for repeated requests",
                     implementation_effort="MEDIUM",
                 )
@@ -397,7 +422,9 @@ class PerformanceAnalyzer:
                     category="optimizations",
                     priority="LOW",
                     issue="Resource blocking not enabled for slow navigation",
-                    recommendation="Enable resource blocking for images, CSS, and fonts",
+                    recommendation=(
+                        "Enable resource blocking for images, CSS, and fonts"
+                    ),
                     potential_improvement="20-40% navigation improvement",
                     implementation_effort="LOW",
                 )
@@ -573,7 +600,6 @@ class PerformanceProfiler:
             "memory_start": start_memory,
             "memory_end": end_memory,
             "memory_delta": end_memory - start_memory,
-            "memory_after_gc": gc_end_memory,
             "memory_leaked": gc_end_memory - gc_start_memory,
             "timestamp": time.time(),
         }

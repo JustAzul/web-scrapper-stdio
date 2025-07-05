@@ -3,9 +3,10 @@ Dependency Injection Module
 Single Responsibility: Configure all dependency bindings for the application.
 """
 from injector import Binder, Module, provider, singleton
-from src.scraper.application.services.web_scraping_service import WebScrapingService
+
 from src.scraper.application.services.fallback_orchestrator import FallbackOrchestrator
-from src.scraper.infrastructure.circuit_breaker_pattern import CircuitBreakerPattern
+from src.scraper.application.services.web_scraping_service import WebScrapingService
+from src.scraper.infrastructure.circuit_breaker import CircuitBreakerPattern
 from src.scraper.infrastructure.monitoring.scraping_metrics_collector import (
     ScrapingMetricsCollector,
 )
@@ -78,4 +79,4 @@ class AppModule(Module):
         content_processor = ContentProcessingService()
         return WebScrapingService(
             orchestrator=orchestrator, content_processor=content_processor
-        ) 
+        )

@@ -37,17 +37,14 @@ def _is_content_too_short(text, min_length):
 def remove_elements(soup: BeautifulSoup, selectors):
     """Decompose all elements matching *selectors* from *soup*.
 
-    *selectors* can be:
-      • tag names (e.g., ``'script'``)
-      • CSS classes/IDs (e.g., ``'.ads', '#sidebar'``)
+    *selectors* can be a list of CSS selectors.
     """
+    if not selectors:
+        return
+
     for sel in selectors:
         try:
-            if sel.startswith(".") or sel.startswith("#"):
-                for element in soup.select(sel):
-                    element.decompose()
-            else:
-                for element in soup.find_all(sel):
-                    element.decompose()
+            for element in soup.select(sel):
+                element.decompose()
         except Exception as e:
             logger.warning(f"Failed to remove selector '{sel}': {e}")

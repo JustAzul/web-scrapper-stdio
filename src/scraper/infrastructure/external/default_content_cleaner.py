@@ -115,7 +115,8 @@ class DefaultContentCleaner(IContentCleaner):
         """
         if not text_content or len(text_content) < min_length:
             logger.warning(
-                f"No significant text content extracted (length < {min_length}) at {url}"
+                f"No significant text content extracted (length < {min_length}) at "
+                f"{url}"
             )
             return False
         return True

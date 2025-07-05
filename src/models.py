@@ -60,7 +60,7 @@ class ScrapeArgs(BaseModel):
             raise ValueError("URL cannot be localhost or a local IP address.")
         return values
 
-    max_length: Optional[int] = Field(
+    max_length: Optional[int | float] = Field(
         default=None,
         description="Maximum number of characters to return. If None, unlimited.",
         gt=0,
@@ -96,4 +96,10 @@ class ScrapeArgs(BaseModel):
     selector: Optional[str] = Field(
         default=None,
         description="CSS selector to extract specific content from the page",
+    )
+    custom_elements_to_remove: Optional[list[str]] = Field(
+        default=None,
+        description=(
+            "Additional HTML elements (CSS selectors) to remove before extraction."
+        ),
     )

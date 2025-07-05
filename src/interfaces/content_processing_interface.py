@@ -1,6 +1,6 @@
 """
 Interface abstrata para Content Processing Service
-Responsabilidade: Definir contrato para processamento de conteúdo
+Defines contract for content processing
 """
 
 from abc import ABC, abstractmethod

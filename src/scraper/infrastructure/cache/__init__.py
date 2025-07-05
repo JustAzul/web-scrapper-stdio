@@ -1,20 +1,18 @@
 """
 Content Caching Strategy Implementation for Web Scraper MCP.
 
-This module implements comprehensive content caching strategies following T028 requirements:
+This module implements content caching strategies following T028
+requirements:
 
 1. Multiple cache implementations (in-memory, file-based, hybrid)
 2. TTL (Time-To-Live) support with automatic expiration
 3. Cache invalidation strategies (LRU, size-based, time-based)
 4. Cache metrics and monitoring
 5. Thread-safe operations with async support
-
-TDD Implementation: GREEN phase - comprehensive caching system.
 """
 
 import asyncio
 import json
-import pickle
 import threading
 import time
 from abc import ABC, abstractmethod
@@ -75,7 +73,12 @@ class CacheEntry:
             elif isinstance(self.value, dict):
                 return len(json.dumps(self.value).encode("utf-8"))
             else:
-                return len(pickle.dumps(self.value))
+                # For other types, try JSON serialization, otherwise use a default
+                # estimate. This ensures no pickle usage.
+                try:
+                    return len(json.dumps(self.value).encode("utf-8"))
+                except TypeError:
+                    return 1024  # Default size estimate for non-JSON-serializable types
         except Exception:
             return 1024  # Default size estimate
 
@@ -546,10 +549,18 @@ class FileBasedCache(ICacheProvider):
                 else:
                     data = content
 
+                # Always attempt JSON deserialization. If it fails, log an error
+                # and return None, as pickle is no longer supported
+                # for security reasons.
                 try:
                     value = json.loads(data.decode("utf-8"))
-                except (json.JSONDecodeError, UnicodeDecodeError):
-                    value = pickle.loads(data)
+                except (json.JSONDecodeError, UnicodeDecodeError) as e:
+                    self.logger.warning(
+                        f"Failed to deserialize cache entry {key} as JSON: {e}. "
+                        "Entry might be corrupted or in an unsupported format "
+                        "(e.g., pickle)."
+                    )
+                    return None
 
                 metadata["last_accessed"] = time.time()
                 metadata["access_count"] = metadata.get("access_count", 0) + 1
@@ -568,10 +579,13 @@ class FileBasedCache(ICacheProvider):
         await self._load_metadata_if_needed()
 
         # Serialization logic...
+        # Always attempt JSON serialization. If the value is not JSON serializable,
+        # it should not be cached in this setup for security reasons.
         try:
             data = json.dumps(value).encode("utf-8")
-        except (TypeError, ValueError):
-            data = pickle.dumps(value)
+        except (TypeError, ValueError) as e:
+            self.logger.error(f"Value for key '{key}' is not JSON serializable: {e}")
+            return False
 
         if self.config.compression_enabled:
             import gzip
@@ -891,7 +905,7 @@ async def create_cache_manager(config: Optional[CacheConfig] = None) -> CacheMan
 def create_memory_cache_config(
     max_size_mb: float = 50.0, max_entries: int = 500
 ) -> CacheConfig:
-    """Create configuration optimized for in-memory caching."""
+    """Create configuration for in-memory caching."""
     return CacheConfig(
         cache_type=CacheType.IN_MEMORY,
         max_size_mb=max_size_mb,
@@ -906,7 +920,7 @@ def create_memory_cache_config(
 def create_file_cache_config(
     cache_dir: str = ".cache/scraper", max_size_mb: float = 200.0
 ) -> CacheConfig:
-    """Create configuration optimized for file-based caching."""
+    """Create configuration for file-based caching."""
     return CacheConfig(
         cache_type=CacheType.FILE_BASED,
         cache_directory=cache_dir,
@@ -924,7 +938,7 @@ def create_file_cache_config(
 def create_hybrid_cache_config(
     cache_dir: str = ".cache/scraper", max_size_mb: float = 100.0
 ) -> CacheConfig:
-    """Create configuration optimized for hybrid caching."""
+    """Create configuration for hybrid caching."""
     return CacheConfig(
         cache_type=CacheType.HYBRID,
         cache_directory=cache_dir,

@@ -104,8 +104,8 @@ class MemoryMonitor:
 
         if current_memory > threshold:
             raise MemoryLimitExceededError(
-                f"Memory limit exceeded: {current_memory:.1f} MB > {self.memory_limit_mb} MB "
-                f"(threshold: {threshold:.1f} MB)"
+                f"Memory limit exceeded: {current_memory:.1f} MB > "
+                f"{self.memory_limit_mb} MB (threshold: {threshold:.1f} MB)"
             )
 
     def __enter__(self):

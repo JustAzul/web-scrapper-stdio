@@ -1,10 +1,8 @@
 """
 Pydantic Settings Implementation for Web Scrapper MCP.
 
-This module replaces the manual config.py with a robust Pydantic Settings system
+This module replaces the manual config.py with a Pydantic Settings system
 that provides type validation, environment variable loading, and documentation.
-
-TDD Implementation: GREEN phase - minimum code to pass tests.
 """
 
 from functools import lru_cache
@@ -24,7 +22,7 @@ class Settings(PydanticBaseSettings):
     Application settings using Pydantic for validation and environment loading.
 
     This class replaces the manual config.py with proper type validation,
-    environment variable loading, and comprehensive documentation.
+    environment variable loading, and clear documentation.
     """
 
     model_config = SettingsConfigDict(
@@ -107,7 +105,9 @@ class Settings(PydanticBaseSettings):
     )
     circuit_breaker_recovery_seconds: int = Field(
         default=CIRCUIT_BREAKER_RECOVERY_TIMEOUT,
-        description="Number of seconds before the circuit breaker enters half-open state",
+        description=(
+            "Number of seconds before the circuit breaker enters half-open state"
+        ),
         gt=0,
     )
 
@@ -116,12 +116,18 @@ class Settings(PydanticBaseSettings):
     retry_initial_delay: float = 1.0
 
     # Fallback and Retry
-    fallback_enabled: bool = Field(True, description="Enable fallback to secondary scraper.")
-    max_retries: int = Field(3, description="Maximum number of retries for a failed request.")
-    retry_delay_seconds: int = Field(5, description="Delay in seconds between retries.")
+    fallback_enabled: bool = Field(
+        True, description="Enable fallback to secondary scraper."
+    )
+    max_retries: int = Field(
+        3, description="Maximum number of retries for a failed request."
+    )
+    retry_delay_seconds: int = Field(
+        5, description="Delay in seconds between retries."
+    )
 
     # Server Configuration
-    server_host: str = Field("0.0.0.0", description="Host for the MCP server.")
+    server_host: str = Field("127.0.0.1", description="Host for the MCP server.")
     server_port: int = Field(8080, description="Port for the MCP server.")
 
     # Service Information

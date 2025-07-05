@@ -36,7 +36,8 @@ async def _navigate_and_handle_errors(page, url, timeout_seconds):
                     pattern, page_content_preview[:2000], re.IGNORECASE
                 ):
                     logger.warning(
-                        f"Detected likely 404 content pattern ('{pattern}') despite 200 OK for {url}"
+                        f"Detected likely 404 content pattern ('{pattern}') "
+                        f"despite 200 OK for {url}"
                     )
                     is_likely_404 = True
 
@@ -46,12 +47,16 @@ async def _navigate_and_handle_errors(page, url, timeout_seconds):
             status_code = response.status
 
             logger.warning(
-                f"HTTP error or 404 content detected for {url}. Status: {status_code} at {page.url}"
+                f"HTTP error or 404 content detected for {url}. Status: {status_code} "
+                f"at {page.url}"
             )
 
             return (
                 response,
-                f"[ERROR] HTTP status code: {status_code} or page indicates 'Not Found'",
+                (
+                    f"[ERROR] HTTP status code: {status_code} or page indicates "
+                    "'Not Found'"
+                ),
             )
 
         return response, None
@@ -85,6 +90,7 @@ def _handle_cloudflare_block(html_content, page_url):
         logger.warning(f"Cloudflare challenge detected for {page_url}")
         return (
             True,
-            "Cloudflare challenge or anti-bot screen detected. Content extraction blocked.",
+            "Cloudflare challenge or anti-bot screen detected. "
+            "Content extraction blocked.",
         )
     return False, None

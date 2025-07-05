@@ -5,8 +5,8 @@ It will be removed in a future version. Please use dependency-injected services 
 Chunked HTML Processor
 
 This module processes large HTML documents in chunks to avoid memory issues
-and improve performance. It includes intelligent fallback mechanisms and
-comprehensive error handling.
+and improve performance. It includes fallback mechanisms and
+error handling.
 """
 
 import gc
@@ -35,8 +35,8 @@ logger = get_logger(__name__)
 
 class ChunkedHTMLProcessor:
     """
-    Memory-efficient HTML processor that handles large documents
-    through chunked processing while maintaining complete backward compatibility.
+    HTML processor that handles large documents
+    through chunked processing.
     """
 
     def __init__(
@@ -54,7 +54,7 @@ class ChunkedHTMLProcessor:
         Args:
             chunk_size_threshold: HTML size threshold to trigger chunked processing
             memory_limit_mb: Memory limit in MB for processing
-            enable_chunking: Whether to enable chunked processing
+            enable_chunking: Whether to enable chunking.
             fallback_enabled: Whether to fallback to original method on errors
             parser: Parser to use for processing
             extra_noise_cleanup: Whether to perform extra noise cleanup
@@ -120,7 +120,8 @@ class ChunkedHTMLProcessor:
                     )
                 except Exception as chunked_error:
                     logger.warning(
-                        "Chunked processing failed, falling back to original method: %s",
+                        "Chunked processing failed, falling back to original method:"
+                        " %s",
                         chunked_error,
                     )
                     if self.fallback_enabled:
@@ -139,7 +140,8 @@ class ChunkedHTMLProcessor:
                         if fallback_error:
                             error = (
                                 f"Chunked processing failed: {chunked_error}. "
-                                f"Fell back to original, which also failed: {fallback_error}"
+                                "Fell back to original, which also failed: "
+                                f"{fallback_error}"
                             )
                         else:
                             # The fallback was successful, so there is no error.
@@ -152,7 +154,7 @@ class ChunkedHTMLProcessor:
                     url,
                     content_size_mb,
                 )
-                title, clean_html, text_content, error, soup = (
+                title, clean_html, text_content, error = (
                     self._extract_content_original(soup, elements_to_remove, url)
                 )
 
@@ -226,10 +228,12 @@ class ChunkedHTMLProcessor:
     ]:
         """
         Process content using chunked processing for better memory efficiency.
-        This simplified version maintains output consistency with original processing.
+        This simplified version maintains output consistency with original
+        method.
         """
         try:
-            # Convert soup back to HTML string for consistent behavior with original method
+            # Convert soup back to HTML string for consistent behavior
+            # with original method
             html_content = str(soup)
             new_soup = BeautifulSoup(html_content, self.parser)
 
@@ -247,7 +251,8 @@ class ChunkedHTMLProcessor:
                 # If no body tag, use entire soup
                 target_element = new_soup
 
-            # For memory efficiency, process large elements in chunks but maintain output structure
+            # For memory efficiency, process large elements in chunks but
+            # maintain output structure
             self._chunks_processed = 0
 
             # If content is very large, process it in chunks for memory efficiency
@@ -306,7 +311,8 @@ class ChunkedHTMLProcessor:
                         len(chunk_accumulator) >= CHUNK_NODE_LIMIT
                         or chunk_bytes > self.chunk_size_threshold
                     ):
-                        # Flush current chunk (no-op here but placeholder for future optimization)
+                        # Flush current chunk (no-op here but placeholder for
+                        # future optimization)
                         chunk_accumulator.clear()
                         chunk_bytes = 0
                         gc.collect()

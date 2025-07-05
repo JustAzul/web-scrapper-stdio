@@ -1,13 +1,13 @@
 """
-Simplified consolidated Scraper class that works directly with Playwright.
+Simplified consolidated Scraper class that works directly with Playwright's sync API.
 """
 
-import asyncio
 import secrets
+import time
 from typing import Any, Dict, Optional
 
 from bs4 import BeautifulSoup
-from playwright.async_api import Page, async_playwright
+from playwright.sync_api import Page, sync_playwright
 
 from src.core.constants import (
     DEFAULT_ACCEPT_LANGUAGES,
@@ -29,142 +29,101 @@ logger = get_logger(__name__)
 
 class Scraper:
     """
-    Simplified consolidated scraper that works directly with Playwright.
+    Simplified consolidated scraper that works directly with Playwright's sync API.
     """
 
-    def __init__(self):
-        """Initialize the scraper."""
-        self.playwright = None
-        self.browser = None
-
-    async def scrape(self, args: ScrapeArgs) -> Dict[str, Any]:
+    def scrape(self, args: ScrapeArgs) -> Dict[str, Any]:
         """
-        Main scraping method that handles the entire process.
-        Now accepts ScrapeArgs directly.
+        Main scraping method that handles the entire process using sync API.
         """
         logger.info(f"Starting scrape for URL: {args.url}")
 
-        playwright = None
-        browser = None
-        page = None
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = None
+            try:
+                page = browser.new_page()
+                self._configure_page(page, args)
 
-        try:
-            # Initialize playwright for this scrape operation
-            playwright = await async_playwright().start()
-            browser = await playwright.chromium.launch(headless=True)
+                response = page.goto(
+                    str(args.url), timeout=args.timeout_seconds * 1000
+                )
 
-            # Create a new page with random configuration
-            page = await browser.new_page()
+                if response and not 200 <= response.status < 300:
+                    raise Exception(f"HTTP {response.status} {response.status_text}")
 
-            # Configure the page
-            await self._configure_page(page, args)
+                if args.grace_period_seconds > 0:
+                    time.sleep(args.grace_period_seconds)
 
-            # Navigate and get content
-            response = await page.goto(
-                str(args.url), timeout=args.timeout_seconds * 1000
-            )
+                html_content = page.content()
+                final_url = page.url
+                title = page.title()
 
-            # Check for non-successful HTTP status codes
-            if response and not 200 <= response.status < 300:
-                raise Exception(f"HTTP {response.status} {response.status_text}")
+                processed_content = self._process_html(html_content, args)
+                formatted_content = self._format_output(
+                    processed_content, args.output_format
+                )
 
-            # Wait for grace period if specified
-            if args.grace_period_seconds > 0:
-                await asyncio.sleep(args.grace_period_seconds)
+                if args.max_length:
+                    length = int(args.max_length)
+                    formatted_content = truncate_content(formatted_content, length)
 
-            # Get page content
-            html_content = await page.content()
-            final_url = page.url
-            title = await page.title()
+                return {
+                    "title": title,
+                    "final_url": final_url,
+                    "content": formatted_content,
+                    "error": None,
+                }
+            except Exception as e:
+                error_message = str(e)
+                logger.error(f"Scraping failed for {args.url}: {error_message}")
+                return {
+                    "title": None,
+                    "final_url": str(args.url),
+                    "content": None,
+                    "error": error_message,
+                }
+            finally:
+                if page:
+                    page.close()
+                browser.close()
 
-            # Process the HTML content
-            processed_content = self._process_html(html_content, args)
-
-            # Format output
-            formatted_content = self._format_output(
-                processed_content, args.output_format
-            )
-
-            # Apply length limit if specified
-            if args.max_length:
-                formatted_content = truncate_content(formatted_content, args.max_length)
-
-            return {
-                "title": title,
-                "final_url": final_url,
-                "content": formatted_content,
-                "error": None,
-            }
-
-        except Exception as e:
-            error_message = str(e)
-            logger.error(f"Scraping failed for {args.url}: {error_message}")
-            return {
-                "title": None,
-                "final_url": str(args.url),
-                "content": None,
-                "error": error_message,
-            }
-        finally:
-            # Always clean up resources
-            if page:
-                try:
-                    await page.close()
-                except Exception:
-                    pass
-            if browser:
-                try:
-                    await browser.close()
-                except Exception:
-                    pass
-            if playwright:
-                try:
-                    await playwright.stop()
-                except Exception:
-                    pass
-
-    async def _configure_page(self, page: Page, args: ScrapeArgs):
+    def _configure_page(self, page: Page, args: ScrapeArgs):
         """Configure the page with random user agent and viewport."""
-        # Use secure random for anti-detection features
         secure_random = secrets.SystemRandom()
 
-        # Set random viewport
         viewport = secure_random.choice(DEFAULT_BROWSER_VIEWPORTS)
-        await page.set_viewport_size(viewport)
+        page.set_viewport_size(viewport)
 
-        # Set user agent
         user_agent = self._get_user_agent(args.user_agent)
-        await page.set_extra_http_headers(
+        page.set_extra_http_headers(
             {
                 "User-Agent": user_agent,
                 "Accept-Language": secure_random.choice(DEFAULT_ACCEPT_LANGUAGES),
             }
         )
 
-        # Add custom headers if provided
-        if args.custom_headers:
-            await page.set_extra_http_headers(args.custom_headers)
+        if "custom_headers" in args and args.custom_headers:
+            page.set_extra_http_headers(args.custom_headers)
 
     def _get_user_agent(self, custom_user_agent: Optional[str] = None) -> str:
         """Get user agent string."""
         if custom_user_agent:
             return custom_user_agent
-
-        secure_random = secrets.SystemRandom()
-        return secure_random.choice(DEFAULT_USER_AGENTS)
+        return secrets.SystemRandom().choice(DEFAULT_USER_AGENTS)
 
     def _process_html(self, html_content: str, args: ScrapeArgs) -> str:
         """Process HTML content and extract main text."""
         soup = BeautifulSoup(html_content, "html.parser")
 
-        # Remove unwanted elements
-        elements_to_remove = DEFAULT_ELEMENTS_TO_REMOVE.copy()
+        elements_to_remove = set(DEFAULT_ELEMENTS_TO_REMOVE)
+        if args.custom_elements_to_remove:
+            elements_to_remove.update(args.custom_elements_to_remove)
 
-        for element_name in elements_to_remove:
-            for element in soup.find_all(element_name):
+        for selector in elements_to_remove:
+            for element in soup.select(selector):
                 element.decompose()
 
-        # Extract text content
         return soup.get_text(separator=" ", strip=True)
 
     def _format_output(self, content: str, output_format: OutputFormat) -> str:
@@ -176,11 +135,4 @@ class Scraper:
         elif output_format == OutputFormat.HTML:
             return content
         else:
-            return to_markdown(content)  # Default to markdown
-
-    async def close(self):
-        """Clean up resources."""
-        if self.browser:
-            await self.browser.close()
-        if self.playwright:
-            await self.playwright.stop()
+            return to_markdown(content)

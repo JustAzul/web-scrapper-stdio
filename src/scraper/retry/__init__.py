@@ -1,7 +1,7 @@
 """
 Retry Strategy Implementation for Web Scraper MCP.
 
-This module implements intelligent retry strategies for handling transient failures
+This module implements retry strategies for handling transient failures
 following T025 requirements:
 
 1. Exponential backoff with jitter
@@ -10,7 +10,6 @@ following T025 requirements:
 4. Maximum retry limits and timeouts
 5. Retry metrics and monitoring
 
-TDD Implementation: GREEN phase - comprehensive retry system.
 """
 
 from __future__ import annotations
@@ -189,7 +188,7 @@ class RetryManager:
         return self.circuit_breakers[key]
 
     def _get_retry_config(self, exception: Exception) -> RetryConfig:
-        """Get retry configuration for an exception."""
+        """Get retry configuration for an Nexception."""
         for error_type, config in self.error_configs.items():
             if isinstance(exception, error_type):
                 return config

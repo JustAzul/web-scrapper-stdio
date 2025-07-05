@@ -1,8 +1,8 @@
 """
 DefaultContentFormatter - Concrete implementation of IContentFormatter
 
-This adapter implements the IContentFormatter interface using existing output formatters,
-following the Adapter pattern and Dependency Inversion Principle.
+This adapter implements the IContentFormatter interface using existing output
+formatters, following the Adapter pattern and Dependency Inversion Principle.
 """
 
 from typing import Optional

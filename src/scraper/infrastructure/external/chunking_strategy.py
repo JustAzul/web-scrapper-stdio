@@ -123,7 +123,8 @@ class ChunkingStrategy:
             if isinstance(element, Tag):
                 element_size = len(str(element))
 
-                # Se adicionar este elemento excederia o tamanho do chunk, processa chunk atual
+                # Se adicionar este elemento excederia o tamanho do chunk,
+                # processa chunk atual
                 if current_chunk_size + element_size > self.chunk_size_threshold:
                     process_current_chunk()
 

@@ -1,10 +1,8 @@
 """
 Health Checks Implementation for Web Scraper MCP.
 
-This module implements comprehensive health monitoring and status checks
+This module implements health monitoring and status checks
 following T021 requirements.
-
-TDD Implementation: GREEN phase - comprehensive health monitoring system.
 """
 
 import time
@@ -180,7 +178,7 @@ class HealthMonitor:
         self.logger = get_logger(__name__)
 
     async def get_health_report(self) -> HealthReport:
-        """Get comprehensive health report."""
+        """Get health report."""
         start_time = time.time()
         all_metrics = []
 

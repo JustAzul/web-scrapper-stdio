@@ -21,28 +21,24 @@ DEFAULT_CONFIG_TIMEOUT = DEFAULT_TIMEOUT_SECONDS  # For backward compatibility
 DEFAULT_CLICK_TIMEOUT_MS = 3000
 MILLISECONDS_PER_SECOND = 1000
 
-# Timeout for network to be idle (in milliseconds)
-NETWORK_IDLE_TIMEOUT_MS = 500
-
-# Timeout for clicking selectors (in milliseconds) - replaces magic number 5000
+# Constant for clicking selectors (in milliseconds)
 SELECTOR_CLICK_TIMEOUT_MS = 5000
 
 
 # =============================================================================
 
-# HTTP success status - replaces magic number 200
+# HTTP success status
 HTTP_SUCCESS_STATUS = 200
 
-# HTTP client error threshold - replaces magic number 400
+# HTTP client error threshold
 HTTP_CLIENT_ERROR_THRESHOLD = 400
 
 
 # =============================================================================
 
 
-# Maximum timeout for MCP validation (in seconds) - replaces magic number 30
-
-# Maximum grace period for MCP validation (in seconds) - replaces magic number 120
+# Maximum timeout for MCP validation (in seconds)
+# Maximum grace period for MCP validation (in seconds)
 
 
 # =============================================================================
@@ -92,11 +88,16 @@ DEFAULT_BROWSER_VIEWPORTS = [
 
 # Default user agents for randomization
 DEFAULT_USER_AGENTS = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:120.0) Gecko/20100101 Firefox/120.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:120.0) "
+    "Gecko/20100101 Firefox/120.0",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 "
+    "Edg/120.0.0.0",
 ]
 
 # Default accept languages for randomization
@@ -189,7 +190,7 @@ CONTENT_AREA_PATTERNS = [
 # VALIDATION CONSTANTS
 # =============================================================================
 
-# MCP validation limits - must be greater than default values to allow them
+# MCP validation limits
 MAX_TIMEOUT_VALIDATION = 120  # Must be > DEFAULT_TIMEOUT_SECONDS (30)
 MAX_GRACE_PERIOD_VALIDATION = 120  # Must be > DEFAULT_GRACE_PERIOD_SECONDS (2.0)
 

@@ -87,7 +87,9 @@ class RefactoredScrapingConfig:
 
         # Create timeout config
         timeout_config = TimeoutConfig(
-            page_timeout=TimeoutValue(config_dict.get("custom_timeout", DEFAULT_TIMEOUT_SECONDS)),
+            page_timeout=TimeoutValue(
+                config_dict.get("custom_timeout", DEFAULT_TIMEOUT_SECONDS)
+            ),
             grace_period=TimeoutValue(config_dict.get("grace_period_seconds", 2.0)),
         )
 

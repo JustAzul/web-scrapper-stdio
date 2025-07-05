@@ -1,9 +1,10 @@
 from __future__ import annotations
+
 import asyncio
 import time
+from logging import Logger
 from typing import Dict, Optional
 from urllib.parse import urlparse
-from logging import Logger
 
 from src.logger import get_logger
 from src.settings import DEFAULT_MIN_SECONDS_BETWEEN_REQUESTS

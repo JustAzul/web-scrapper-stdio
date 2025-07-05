@@ -1,7 +1,7 @@
 from __future__ import annotations
-import psutil
-from typing import Optional
+
 from logging import Logger
+from typing import Optional
 
 from src.logger import get_logger
 

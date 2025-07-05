@@ -1,9 +1,9 @@
 from logging import Logger
 from typing import Any
 
-from mcp.server import FastMCP, Tool
 from pydantic import BaseModel, Field
 
+from mcp.server import FastMCP, Tool
 from src.scraper.application.services.content_processing_service import (
     ContentProcessingService,
 )
@@ -14,7 +14,7 @@ from src.scraper.infrastructure.web_scraping.fallback_orchestrator import (
     FallbackOrchestrator,
 )
 from src.scraper.infrastructure.web_scraping.fallback_scraper import (
-    IntelligentFallbackScraper,
+    FallbackScraper,
 )
 from src.scraper.infrastructure.web_scraping.http_client import AsyncHttpClient
 from src.scraper.infrastructure.web_scraping.scraper_config import ScraperConfig
@@ -78,8 +78,8 @@ def create_app(logger: Logger) -> FastMCP:
     circuit_breaker = CircuitBreaker()
     content_processor = ContentProcessingService(logger=logger)
 
-    # Create the intelligent fallback scraper
-    fallback_scraper = IntelligentFallbackScraper(
+    # Create the fallback scraper
+    fallback_scraper = FallbackScraper(
         client=http_client, config=scraper_config, logger=logger
     )
 

@@ -17,7 +17,8 @@ async def _wait_for_content_stabilization(
 
         except PlaywrightTimeoutError:
             logger.debug(
-                f"Network didn't become fully idle after {timeout_seconds / 2}s, continuing anyway"
+                f"Network didn't become fully idle after {timeout_seconds / 2}s, "
+                "continuing anyway"
             )
 
     try:

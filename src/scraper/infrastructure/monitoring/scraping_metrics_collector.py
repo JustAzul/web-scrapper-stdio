@@ -1,6 +1,5 @@
 """
 ScrapingMetricsCollector - Single Responsibility: Collect scraping metrics
-Part of refactoring T003 - Break up IntelligentFallbackScraper following SRP
 """
 
 import threading
@@ -10,7 +9,8 @@ from typing import Any, Dict, Optional
 
 
 class ScrapingMetricsCollector:
-    """Collects metrics from scraping operations following the Single Responsibility Principle"""
+    """Collects metrics from scraping operations following the Single
+    Responsibility Principle"""
 
     def __init__(self, enabled: bool = True):
         """
@@ -45,7 +45,7 @@ class ScrapingMetricsCollector:
 
         Args:
             start_time: Timestamp of the operation's start
-            strategy_used: Strategy used (playwright_optimized, requests_fallback, etc.)
+            strategy_used: Strategy used (playwright, requests_fallback, etc.)
             attempts: Number of attempts made
             final_url: Final URL after redirects
             content_size: Size of the obtained content in bytes
