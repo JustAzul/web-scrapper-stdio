@@ -60,7 +60,9 @@ class ScrapingOrchestrator:
                 page = await browser.new_page()
                 response = await page.goto(
                     normalized_url,
-                    timeout=(kwargs.get("custom_timeout") or DEFAULT_TIMEOUT_SECONDS) * 1000,
+                    timeout=(
+                        kwargs.get("custom_timeout") or DEFAULT_TIMEOUT_SECONDS
+                    ) * 1000,
                 )
 
                 if response and response.status >= 400:

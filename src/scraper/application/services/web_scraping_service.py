@@ -1,7 +1,8 @@
 """Web Scraping Service for orchestrating the complete web scraping workflow.
 
 This service implements the Single Responsibility Principle by focusing solely on
-orchestrating the web scraping process, extracted from the large extract_text_from_url function.
+orchestrating the web scraping process, extracted from the large
+extract_text_from_url function.
 
 REFACTORED VERSION: Now uses ScrapingRequest internally while maintaining
 backward compatibility with the original 9-parameter method signature.
@@ -47,6 +48,14 @@ class WebScrapingService:
         self.content_processor = content_processor
         self.orchestrator = orchestrator
         self.logger = logger
+
+    async def initialize(self) -> None:
+        """Initializes the orchestrator's components."""
+        await self.orchestrator.initialize()
+
+    async def shutdown(self) -> None:
+        """Shuts down the orchestrator's components."""
+        await self.orchestrator.shutdown()
 
     async def scrape_url(
         self,

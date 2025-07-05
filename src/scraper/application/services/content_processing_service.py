@@ -38,7 +38,7 @@ class ContentProcessingService:
     This follows SRP by focusing only on content processing concerns.
     """
 
-    def __init__(self, chunked_processor=None):
+    def __init__(self=None, chunked_processor=None):
         """
         Initialize the content processing service.
 
@@ -66,7 +66,7 @@ class ContentProcessingService:
             # Use chunked processor if available
             if self.chunked_processor:
                 page_title, clean_html, text_content, error, soup = (
-                    self.chunked_processor.extract_clean_html_optimized(
+                    self.chunked_processor.extract_clean_html(
                         html_content, elements_to_remove, url
                     )
                 )

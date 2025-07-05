@@ -37,7 +37,8 @@ class AsyncRateLimiter:
         Initialize async rate limiter.
 
         Args:
-            min_seconds_between_requests: Minimum seconds between requests to same domain
+            min_seconds_between_requests: Minimum seconds between requests to
+            same domain
         """
         self.min_seconds_between_requests = (
             min_seconds_between_requests or DEFAULT_MIN_SECONDS_BETWEEN_REQUESTS

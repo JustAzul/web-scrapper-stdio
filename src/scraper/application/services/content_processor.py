@@ -92,7 +92,10 @@ class RefactoredContentProcessingService:
                     None,
                     None,
                     None,
-                    f"[ERROR] No significant text content extracted (length < {min_len}).",
+                    (
+                        f"[ERROR] No significant text content extracted (length < "
+                        f"{min_len})."
+                    ),
                 )
 
             # Step 4: Return successful result

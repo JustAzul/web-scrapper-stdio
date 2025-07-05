@@ -7,8 +7,8 @@ WebScrapingService.scrape_url following the Single Responsibility Principle.
 
 import asyncio
 from dataclasses import dataclass
-from typing import List, Optional
 from logging import Logger
+from typing import List, Optional
 
 from src.logger import get_logger
 from src.scraper.application.contracts.browser_automation import BrowserAutomation

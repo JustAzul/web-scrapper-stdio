@@ -1,8 +1,8 @@
 """
 ContentStabilizationHandler - Single Responsibility: Content Stabilization
 
-Handles the content stabilization responsibility extracted from WebScrapingService.scrape_url
-following the Single Responsibility Principle.
+Handles the content stabilization responsibility extracted from
+WebScrapingService.scrape_url following the Single Responsibility Principle.
 """
 
 from dataclasses import dataclass
@@ -61,7 +61,10 @@ class ContentStabilizationHandler:
             )
 
             if not content_stabilized:
-                error_msg = f"[ERROR] Content did not stabilize within timeout for {request.url}."
+                error_msg = (
+                    f"[ERROR] Content did not stabilize within timeout for "
+                    f"{request.url}."
+                )
                 logger.warning(
                     f"Content did not stabilize within timeout for {request.url}"
                 )

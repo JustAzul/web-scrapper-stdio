@@ -1,8 +1,8 @@
 """
-Intelligent Fallback Scraper Implementation.
+Fallback Scraper Implementation.
 
-This module implements a robust web scraping system with intelligent fallback:
-1. Primary: Optimized Playwright with resource blocking
+This module implements a web scraping system with fallback:
+1. Primary: Playwright with resource blocking
 2. Fallback: Pure HTTP requests with httpx
 3. Circuit breaker pattern for reliability
 4. Exponential backoff retry mechanism
@@ -12,26 +12,15 @@ Based on validated research from official Playwright documentation and real-worl
 implementations.
 """
 
-import asyncio
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-import httpx
-from bs4 import BeautifulSoup
 from injector import Injector
-from playwright.async_api import Error as PlaywrightError
-from playwright.async_api import (
-    Page,
-    async_playwright,
-)
-from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
 from src.core.constants import (
     DEFAULT_CONFIG_TIMEOUT,
     DEFAULT_FALLBACK_TIMEOUT,
-    HTTP_CLIENT_ERROR_THRESHOLD,
-    MILLISECONDS_PER_SECOND,
 )
 from src.logger import get_logger
 
@@ -44,7 +33,7 @@ logger = get_logger(__name__)
 class FallbackStrategy(Enum):
     """Enumeration of available fallback strategies."""
 
-    PLAYWRIGHT_OPTIMIZED = "playwright_optimized"
+    PLAYWRIGHT = "playwright"
     REQUESTS_FALLBACK = "requests_fallback"
     ALL_FAILED = "all_failed"
 
@@ -63,7 +52,7 @@ class PageCrashedError(ScrapingError):
 
 @dataclass(frozen=True)
 class FallbackConfig:
-    """Configuration for the intelligent fallback scraper."""
+    """Configuration for the fallback scraper."""
 
     playwright_timeout: int = DEFAULT_CONFIG_TIMEOUT
     requests_timeout: int = DEFAULT_FALLBACK_TIMEOUT
@@ -94,9 +83,9 @@ class ScrapingResult:
     """Result of a scraping operation with detailed metadata."""
 
     success: bool
-    content: Optional[str]
-    strategy_used: FallbackStrategy
-    attempts: int
+    content: Optional[str] = None
+    strategy_used: FallbackStrategy = FallbackStrategy.ALL_FAILED
+    attempts: int = 0
     error: Optional[str] = None
     performance_metrics: Optional[Dict[str, float]] = None
     final_url: Optional[str] = None
@@ -106,9 +95,9 @@ class ScrapingResult:
         return asdict(self)
 
 
-class IntelligentFallbackScraper:
+class FallbackScraper:
     """
-    Orchestrates web scraping with an intelligent fallback mechanism.
+    Orchestrates web scraping with a fallback mechanism.
     This class is the main entry point for the scraping logic.
 
     REFATORADO: Agora delega para FallbackOrchestrator seguindo SRP

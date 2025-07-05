@@ -95,13 +95,13 @@ class CentralizedHTMLExtractor:
         try:
             # Usar processor chunked refatorado existente
             from src.scraper.infrastructure.external.refactored_chunked_processor import (
-                extract_clean_html_optimized,
+                extract_clean_html,
             )
 
             self.logger.debug(f"Using chunked processing for {url}")
 
-            result = extract_clean_html_optimized(
-                html_content=html_content,
+            result = extract_clean_html(
+                html_content,
                 elements_to_remove=config.elements_to_remove,
                 url=url,
                 enable_chunking=True,
@@ -169,10 +169,8 @@ class CentralizedHTMLExtractor:
             self.logger.error(f"Error in original processing for {url}: {error_msg}")
             return "", "", "", error_msg, None
 
-
 # Instância singleton para evitar recriação desnecessária
 _extractor_instance: Optional[CentralizedHTMLExtractor] = None
-
 
 def get_centralized_extractor() -> CentralizedHTMLExtractor:
     """

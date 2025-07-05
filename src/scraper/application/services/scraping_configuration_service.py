@@ -157,7 +157,7 @@ class ScrapingConfigurationService:
         custom_elements_to_remove: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """
-        Get comprehensive scraping configuration.
+        Get scraping configuration.
 
         Args:
             custom_user_agent: Custom User-Agent string

@@ -1,9 +1,9 @@
 """
 Fallback Browser Automation Implementation.
 
-This module provides an adapter that integrates the intelligent fallback scraper
-with the existing browser automation interface, enabling seamless replacement
-of the standard Playwright implementation with the robust fallback system.
+This module provides an adapter that integrates the fallback scraper
+with the existing browser automation interface, enabling direct replacement
+of the standard Playwright implementation with the fallback system.
 
 Follows the Adapter pattern to maintain compatibility with existing code.
 """
@@ -29,9 +29,10 @@ logger = get_logger(__name__)
 
 class FallbackBrowserAutomation(BrowserAutomation):
     """
-    Adapter that integrates intelligent fallback scraper with browser automation interface.
+    Adapter that integrates fallback scraper with browser automation
+    interface.
 
-    This class adapts the IntelligentFallbackScraper to work with the existing
+    This class adapts the FallbackScraper to work with the existing
     browser automation interface, providing a consistent way to perform scraping
     """
 
@@ -45,7 +46,7 @@ class FallbackBrowserAutomation(BrowserAutomation):
         Initialize the fallback browser automation adapter.
 
         Args:
-            scraper: Configured intelligent fallback scraper
+            scraper: Configured fallback scraper
             browser_config: Browser configuration from existing interface
             fallback_config: Fallback-specific configuration
         """
@@ -59,7 +60,7 @@ class FallbackBrowserAutomation(BrowserAutomation):
 
     async def navigate_to_url(self, url: str) -> BrowserResponse:
         """
-        Navigate to URL using intelligent fallback strategy.
+        Navigate to URL using fallback strategy.
 
         Args:
             url: Target URL to navigate to
@@ -70,24 +71,20 @@ class FallbackBrowserAutomation(BrowserAutomation):
         try:
             logger.debug(f"Fallback browser navigating to: {url}")
 
-            # Use intelligent scraper with custom headers if set
             result = await self.scraper.scrape_url(
                 url=url, custom_headers=self._custom_headers
             )
 
-            # Cache results for other interface methods
             self._last_content = result.content
             self._last_url = result.final_url or url
             self._last_performance_metrics = result.performance_metrics
 
-            # Convert ScrapingResult to BrowserResponse
             if result.success:
-                # Determine status code based on strategy used
-                status_code = HTTP_SUCCESS_STATUS  # Use named constant instead of magic number 200
+                status_code = HTTP_SUCCESS_STATUS
                 if result.strategy_used == FallbackStrategy.REQUESTS_FALLBACK:
-                    status_code = HTTP_SUCCESS_STATUS  # HTTP requests succeeded
-                elif result.strategy_used == FallbackStrategy.PLAYWRIGHT_OPTIMIZED:
-                    status_code = HTTP_SUCCESS_STATUS  # Playwright succeeded
+                    status_code = HTTP_SUCCESS_STATUS
+                elif result.strategy_used == FallbackStrategy.PLAYWRIGHT:
+                    status_code = HTTP_SUCCESS_STATUS
 
                 return BrowserResponse(
                     success=True,
@@ -205,8 +202,6 @@ class FallbackBrowserAutomation(BrowserAutomation):
         Returns:
             String indicating which strategy was used, or None if no navigation yet
         """
-        # This would require storing the strategy from the last result
-        # For now, return None - could be enhanced to track this
         return None
 
 
@@ -215,7 +210,7 @@ class FallbackBrowserFactory(BrowserAutomationFactory):
     Factory for creating fallback browser automation instances.
 
     This factory creates FallbackBrowserAutomation instances that use the
-    intelligent fallback scraper system while maintaining compatibility
+    fallback scraper system while maintaining compatibility
     with the existing browser automation interface.
     """
 
@@ -229,7 +224,7 @@ class FallbackBrowserFactory(BrowserAutomationFactory):
         Returns:
             Configured fallback browser automation instance
         """
-        # Create optimized fallback configuration based on browser config
+        # Create fallback configuration based on browser config
         fallback_config = FallbackConfig(
             playwright_timeout=config.timeout_seconds,
             requests_timeout=max(
@@ -249,7 +244,7 @@ class FallbackBrowserFactory(BrowserAutomationFactory):
             ],
         )
 
-        # Create intelligent scraper with optimized config
+        # Create scraper with fallback config
         scraper = IntelligentFallbackScraper(config=fallback_config)
 
         # Create and return the adapter
@@ -266,22 +261,22 @@ class FallbackBrowserFactory(BrowserAutomationFactory):
 
         return fallback_browser
 
-    def create_optimized_config(
+    def create_config(
         self,
         base_config: BrowserConfiguration,
-        enable_aggressive_blocking: bool = True,
+        enable_blocking: bool = True,
         custom_blocked_types: Optional[List[str]] = None,
     ) -> FallbackConfig:
         """
-        Create optimized fallback configuration for specific use cases.
+        Create fallback configuration for specific use cases.
 
         Args:
             base_config: Base browser configuration
-            enable_aggressive_blocking: Whether to enable aggressive resource blocking
+            enable_blocking: Whether to enable blocking
             custom_blocked_types: Custom list of resource types to block
 
         Returns:
-            Optimized fallback configuration
+            Fallback configuration
         """
         blocked_types = custom_blocked_types or [
             "image",
@@ -291,7 +286,7 @@ class FallbackBrowserFactory(BrowserAutomationFactory):
             "websocket",
         ]
 
-        if enable_aggressive_blocking:
+        if enable_blocking:
             # Add more resource types for maximum performance
             blocked_types.extend(["eventsource", "manifest", "texttrack", "other"])
 
@@ -300,6 +295,6 @@ class FallbackBrowserFactory(BrowserAutomationFactory):
             requests_timeout=base_config.timeout_seconds // 2,
             max_retries=3,
             circuit_breaker_threshold=5,
-            enable_resource_blocking=enable_aggressive_blocking,
+            enable_resource_blocking=enable_blocking,
             blocked_resource_types=blocked_types,
         )

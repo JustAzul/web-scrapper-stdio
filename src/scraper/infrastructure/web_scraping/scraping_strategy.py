@@ -24,4 +24,4 @@ class ScrapingStrategy(ABC):
         Returns:
             The cleaned HTML content of the page.
         """
-        raise NotImplementedError 
+        raise NotImplementedError

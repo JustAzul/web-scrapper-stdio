@@ -8,7 +8,8 @@ from src.core.constants import (
     DEFAULT_USER_AGENTS,
 )
 
-# NOTE: Browser pooling/singleton is only safe in long-lived, single-process, non-test environments.
+# NOTE: Browser pooling/singleton is only safe in long-lived, single-process,
+# non-test environments.
 
 
 async def launch_browser(

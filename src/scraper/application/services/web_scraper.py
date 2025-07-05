@@ -26,7 +26,8 @@ class RefactoredWebScrapingService:
     """
     Refactored web scraping service using specialized handlers.
 
-    This service follows SRP by delegating specific responsibilities to specialized handlers:
+    This service follows SRP by delegating specific responsibilities to
+    specialized handlers:
     - NavigationHandler: URL navigation and browser setup
     - ContentStabilizationHandler: Content stabilization
     - InteractionHandler: Element interactions
@@ -100,7 +101,8 @@ class RefactoredWebScrapingService:
                 browser_automation, request
             )
 
-            # Note: Interaction failures are non-critical, so we continue even if they fail
+            # Note: Interaction failures are non-critical, so we continue even if
+            # they fail
             if interaction_result.error:
                 logger.debug(f"Interaction warning: {interaction_result.error}")
 

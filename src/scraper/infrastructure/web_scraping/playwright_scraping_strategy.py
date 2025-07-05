@@ -56,40 +56,40 @@ class PlaywrightScrapingStrategy(ScrapingStrategy):
         if not self._browser:
             raise Exception("Playwright browser is not initialized.")
 
-            try:
+        try:
             context = await self._browser.new_context(extra_http_headers=headers)
-                page = await context.new_page()
+            page = await context.new_page()
 
-                if self.enable_resource_blocking:
-                    await self._setup_resource_blocking(page)
+            if self.enable_resource_blocking:
+                await self._setup_resource_blocking(page)
 
-                response = await page.goto(
-                    request.url,
-                    wait_until="domcontentloaded",
-                    timeout=self.timeout * 1000,
+            response = await page.goto(
+                request.url,
+                wait_until="domcontentloaded",
+                timeout=self.timeout * 1000,
+            )
+
+            if response and response.status >= 400:
+                # Cria uma request e response mock para o erro
+                mock_request = httpx.Request("GET", request.url)
+                mock_response = httpx.Response(
+                    status_code=response.status,
+                    request=mock_request,
+                    text=await response.text(),
+                )
+                raise httpx.HTTPStatusError(
+                    f"HTTP error {response.status}",
+                    request=mock_request,
+                    response=mock_response,
                 )
 
-                if response and response.status >= 400:
-                    # Cria uma request e response mock para o erro
-                    mock_request = httpx.Request("GET", request.url)
-                    mock_response = httpx.Response(
-                        status_code=response.status,
-                        request=mock_request,
-                        text=await response.text(),
-                    )
-                    raise httpx.HTTPStatusError(
-                        f"HTTP error {response.status}",
-                        request=mock_request,
-                        response=mock_response,
-                    )
+            if not response:
+                raise Exception("Playwright failed to get a response.")
 
-                if not response:
-                    raise Exception("Playwright failed to get a response.")
+            content = await page.content()
+            return self._clean_html_content(content)
 
-                content = await page.content()
-                return self._clean_html_content(content)
-
-            finally:
+        finally:
             if 'context' in locals() and context:
                 await context.close()
 

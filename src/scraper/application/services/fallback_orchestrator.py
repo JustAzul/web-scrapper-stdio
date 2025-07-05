@@ -1,24 +1,22 @@
 """
 FallbackOrchestrator - Orchestration of fallback scraping responsibilities
-Part of refactoring T003 - Break up IntelligentFallbackScraper following SRP
 """
 
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import httpx
+from injector import inject
 from playwright.async_api import Error as PlaywrightError
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
 from src.logger import get_logger
 
-from ...infrastructure.circuit_breaker_pattern import CircuitBreakerPattern
+from ...infrastructure.circuit_breaker import CircuitBreakerPattern
 from ...infrastructure.monitoring.scraping_metrics_collector import (
     ScrapingMetricsCollector,
 )
-from ...infrastructure.retry_strategy_pattern import RetryStrategyPattern
 from ...infrastructure.web_scraping.fallback_scraper import (
-    FallbackConfig,
     FallbackStrategy,
     ScrapingResult,
 )
@@ -29,7 +27,6 @@ from ...infrastructure.web_scraping.requests_scraping_strategy import (
     RequestsScrapingStrategy,
 )
 from .scraping_request import ScrapingRequest
-from injector import inject
 
 logger = get_logger(__name__)
 
@@ -55,9 +52,17 @@ class FallbackOrchestrator:
         self.circuit_breaker = circuit_breaker
         self.metrics_collector = metrics_collector
 
+    async def initialize(self) -> None:
+        """Initializes the Playwright strategy within the orchestrator."""
+        await self.playwright_strategy.initialize()
+
+    async def shutdown(self) -> None:
+        """Shuts down the Playwright strategy within the orchestrator."""
+        await self.playwright_strategy.shutdown()
+
     async def scrape_url(self, request: ScrapingRequest) -> ScrapingResult:
         """
-        Executes scraping with intelligent fallback
+        Executes scraping with fallback
 
         Args:
             request: Object with all request parameters
@@ -98,7 +103,7 @@ class FallbackOrchestrator:
 
             self.metrics_collector.record_scraping_success(
                 start_time=start_time,
-                strategy_used="playwright_optimized",
+                strategy_used="playwright",
                 attempts=attempts,
                 final_url=request.url,
                 content_size=len(content) if content else 0,
@@ -107,7 +112,7 @@ class FallbackOrchestrator:
             return ScrapingResult(
                 success=True,
                 content=content,
-                strategy_used=FallbackStrategy.PLAYWRIGHT_OPTIMIZED,
+                strategy_used=FallbackStrategy.PLAYWRIGHT,
                 attempts=attempts,
                 performance_metrics={"total_time": time.time() - start_time},
                 final_url=request.url,
