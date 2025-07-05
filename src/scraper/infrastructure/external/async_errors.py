@@ -10,9 +10,9 @@ import asyncio
 import re
 from typing import Any, Optional
 
-from src.logger import Logger
+from src.logger import get_logger
 
-logger = Logger(__name__)
+logger = get_logger(__name__)
 
 
 class AsyncErrorHandler:

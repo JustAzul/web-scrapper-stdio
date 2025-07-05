@@ -1,13 +1,14 @@
 import time
+from logging import Logger
 from typing import Any, Dict, Optional
 
-from src.logger import Logger
+from src.logger import get_logger
 
 
 class ProcessingMetrics:
     def __init__(self, enabled: bool, logger: Optional[Logger] = None):
         self.enabled = enabled
-        self.logger = logger or Logger(__name__)
+        self.logger = logger or get_logger(__name__)
         self.last_metrics: Dict[str, Any] = {}
 
     def start_processing(self) -> float:

@@ -19,7 +19,7 @@ from src.core.constants import (
     MILLISECONDS_PER_SECOND,
     SELECTOR_CLICK_TIMEOUT_MS,
 )
-from src.logger import Logger
+from src.logger import get_logger
 
 from ...application.contracts.browser_automation import (
     BrowserAutomation,
@@ -28,7 +28,7 @@ from ...application.contracts.browser_automation import (
     BrowserResponse,
 )
 
-logger = Logger(__name__)
+logger = get_logger(__name__)
 
 
 class PlaywrightBrowser(BrowserAutomation):

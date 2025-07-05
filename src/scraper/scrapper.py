@@ -15,7 +15,7 @@ from src.core.constants import (
     DEFAULT_ELEMENTS_TO_REMOVE,
     DEFAULT_USER_AGENTS,
 )
-from src.logger import Logger
+from src.logger import get_logger
 from src.models import ScrapeArgs
 from src.output_format_handler import (
     OutputFormat,
@@ -24,7 +24,7 @@ from src.output_format_handler import (
     truncate_content,
 )
 
-logger = Logger(__name__)
+logger = get_logger(__name__)
 
 
 class Scraper:

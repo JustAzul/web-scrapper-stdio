@@ -14,10 +14,9 @@ from pydantic import (
     model_validator,
 )
 
-from src.config import DEFAULT_TIMEOUT_SECONDS
 from src.core.constants import MAX_GRACE_PERIOD_VALIDATION, MAX_TIMEOUT_VALIDATION
 from src.output_format_handler import OutputFormat
-from src.settings import get_settings
+from src.settings import DEFAULT_TIMEOUT_SECONDS, get_settings
 
 
 class ScrapeArgs(BaseModel):

@@ -9,15 +9,14 @@ from dataclasses import dataclass
 from typing import List, Optional
 from urllib.parse import urlparse
 
-from src.config import DEFAULT_TIMEOUT_SECONDS
-from src.output_format_handler import OutputFormat
-
 from src.core.constants import (
     BYTES_PER_MB,
     MAX_TIMEOUT_SECONDS,
     MB_PER_KB,
     MILLISECONDS_PER_SECOND,
 )
+from src.output_format_handler import OutputFormat
+from src.settings import DEFAULT_TIMEOUT_SECONDS
 
 
 @dataclass(frozen=True)
@@ -177,6 +176,9 @@ class MemorySize:
 @dataclass(frozen=True)
 class ScrapingConfig:
     """
+    DEPRECATED: This class is superseded by the ScrapingRequest model.
+    It is maintained for backward compatibility and will be removed in a future version.
+
     Configuration object for web scraping operations.
 
     Replaces the long parameter list in extract_text_from_url with a
@@ -228,12 +230,12 @@ class ScrapingConfig:
         """
         return {
             "url": self.url,
-            "custom_timeout": self.timeout.seconds
-            if self.timeout
-            else DEFAULT_TIMEOUT_SECONDS,
-            "grace_period_seconds": self.grace_period.seconds
-            if self.grace_period
-            else 2.0,
+            "custom_timeout": (
+                self.timeout.seconds if self.timeout else DEFAULT_TIMEOUT_SECONDS
+            ),
+            "grace_period_seconds": (
+                self.grace_period.seconds if self.grace_period else 2.0
+            ),
             "output_format": self.output_format,
             "wait_for_network_idle": self.wait_for_network_idle,
             "max_length": self.max_length,

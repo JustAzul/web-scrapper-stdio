@@ -1,13 +1,13 @@
 """
 Circuit Breaker Pattern Implementation
-Responsabilidade única: Implementar padrão circuit breaker para falhas
+Single Responsibility: Implement circuit breaker pattern for failures
 """
 
 import time
 
-from src.logger import Logger
+from src.logger import get_logger
 
-logger = Logger(__name__)
+logger = get_logger(__name__)
 
 
 class CircuitBreakerPattern:
@@ -29,35 +29,52 @@ class CircuitBreakerPattern:
         self.logger = logger
 
     def record_failure(self):
-        """Records a failure and opens the circuit if threshold is met."""
+        """Records a failure and handles state transitions."""
+        if self.state == "HALF-OPEN":
+            self.state = "OPEN"
+            self.last_failure_time = time.time()
+            self.logger.warning("Circuit breaker RE-OPENED from HALF-OPEN state.")
+        else:
         self.failure_count += 1
         if self.failure_count >= self.failure_threshold:
+                if self.state == "CLOSED":
             self.state = "OPEN"
             self.last_failure_time = time.time()
             self.logger.warning("Circuit breaker OPENED.")
 
     def record_success(self):
-        """Resets the circuit breaker to a CLOSED state on success."""
-        if self.state != "CLOSED":
-            self.logger.info("Circuit breaker RESET to CLOSED state.")
+        """Records a success and handles state transitions."""
+        if self.state == "HALF-OPEN":
+            self.state = "CLOSED"
         self.failure_count = 0
-        self.state = "CLOSED"
+            self.logger.info("Circuit breaker RESET to CLOSED from HALF-OPEN.")
+        elif self.state == "CLOSED":
+            self.failure_count = 0  # Reset on any success in closed state
 
     @property
     def is_open(self) -> bool:
-        """Checks if the circuit is open, with logic for HALF_OPEN state."""
+        """
+        Determines if the circuit is currently open without changing state.
+        A circuit is considered open if it is in the OPEN state and the
+        recovery timeout has not yet passed.
+        """
         if self.state == "OPEN":
             if time.time() - self.last_failure_time > self.recovery_timeout:
-                self.state = "HALF_OPEN"
-                self.logger.info("Circuit breaker moved to HALF_OPEN state.")
-                return False  # Allow one trial request
+                # The circuit is ready for a trial request (HALF-OPEN state),
+                # so it's not considered strictly 'open' anymore.
+                return False
             return True
         return False
 
     def get_state(self) -> str:
-        """Returns the current state of the circuit."""
-        # Trigger property to update state if needed
-        _ = self.is_open
+        """
+        Gets the current state of the circuit breaker, handling the transition
+        to HALF-OPEN if the recovery timeout has passed.
+        """
+        if self.state == "OPEN":
+            if time.time() - self.last_failure_time > self.recovery_timeout:
+                self.state = "HALF-OPEN"
+                self.logger.info("Circuit breaker moved to HALF-OPEN state.")
         return self.state
 
     def get_failure_count(self) -> int:

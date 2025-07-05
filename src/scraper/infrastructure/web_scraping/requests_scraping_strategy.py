@@ -8,8 +8,11 @@ from typing import Any, Dict, Optional
 import httpx
 from bs4 import BeautifulSoup
 
+from ...application.services.scraping_request import ScrapingRequest
+from .scraping_strategy import ScrapingStrategy
 
-class RequestsScrapingStrategy:
+
+class RequestsScrapingStrategy(ScrapingStrategy):
     """Estratégia de scraping usando HTTP requests seguindo SRP"""
 
     def __init__(self, config: Any) -> None:
@@ -17,13 +20,13 @@ class RequestsScrapingStrategy:
         self.timeout = config.requests_timeout
 
     async def scrape_url(
-        self, url: str, headers: Optional[Dict[str, Any]] = None
+        self, request: ScrapingRequest, headers: Optional[Dict[str, Any]] = None
     ) -> str:
         """
         Faz scraping de URL usando HTTP requests
 
         Args:
-            url: URL para fazer scraping
+            request: Objeto com todos os parâmetros da requisição
             headers: Headers opcionais
 
         Returns:
@@ -41,7 +44,7 @@ class RequestsScrapingStrategy:
             default_headers.update(headers)
 
         async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.get(url, headers=default_headers)
+            response = await client.get(request.url, headers=default_headers)
             response.raise_for_status()
 
             return self._clean_html_content(response.text)

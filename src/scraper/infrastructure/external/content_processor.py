@@ -9,6 +9,7 @@ from typing import List, Optional, Tuple
 from bs4 import BeautifulSoup, Tag
 
 from src.core.constants import NOISE_SELECTORS
+
 from .html_utils import remove_elements
 
 

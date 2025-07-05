@@ -13,25 +13,22 @@ TDD Implementation: GREEN phase - comprehensive caching system.
 """
 
 import asyncio
-import hashlib
 import json
-import os
 import pickle
 import threading
 import time
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from threading import RLock
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Optional
 
 import aiofiles
-import aiofiles.os
 
-from src.logger import Logger
+from src.logger import get_logger
 
-logger = Logger(__name__)
+logger = get_logger(__name__)
 
 
 class CacheType(Enum):
@@ -233,7 +230,7 @@ class InMemoryCache(ICacheProvider):
 
     def __init__(self, config: CacheConfig):
         self.config = config
-        self.logger = Logger(__name__)
+        self.logger = get_logger(__name__)
         self._cache: Dict[str, CacheEntry] = {}
         self._metrics = CacheMetrics()
         self._lock = RLock() if config.thread_safe else None
@@ -439,7 +436,9 @@ class InMemoryCache(ICacheProvider):
             self._metrics.update_eviction()
 
         self.logger.debug(
-            f"Evicted {entries_to_evict} entries using {self.config.eviction_policy.value} policy"
+            "Evicted %s entries using %s policy",
+            entries_to_evict,
+            self.config.eviction_policy.value,
         )
 
     def _update_size_metrics(self) -> None:
@@ -458,7 +457,7 @@ class FileBasedCache(ICacheProvider):
 
     def __init__(self, config: CacheConfig):
         self.config = config
-        self.logger = Logger(__name__)
+        self.logger = get_logger(__name__)
         self._cache_dir = Path(self.config.cache_directory)
         self._cache_dir.mkdir(parents=True, exist_ok=True)
 
@@ -594,9 +593,15 @@ class FileBasedCache(ICacheProvider):
                     "size_bytes": len(data),
                 }
 
-                # Defer saving metadata to a background task or on shutdown for performance
-                # For now, we save it on each write.
-                await self._save_metadata()
+                if self.config.save_metadata:
+                    self.logger.debug(
+                        "Saving metadata to %s", self._get_cache_path(key)
+                    )
+
+                    # Defer saving metadata to a background task or
+                    # on shutdown for performance
+                    # For now, we save it on each write.
+                    await self._save_metadata()
 
                 if len(self._metadata) > self.config.max_entries:
                     await self._evict_entries()
@@ -707,7 +712,7 @@ class HybridCache(ICacheProvider):
 
     def __init__(self, config: CacheConfig):
         self.config = config
-        self.logger = Logger(__name__)
+        self.logger = get_logger(__name__)
 
         # Create L1 (memory) and L2 (file) caches
         memory_config = CacheConfig(
@@ -824,7 +829,7 @@ class CacheManager:
 
     def __init__(self, config: Optional[CacheConfig] = None):
         self.config = config or CacheConfig()
-        self.logger = Logger(__name__)
+        self.logger = get_logger(__name__)
         self._cache_provider = self._create_cache_provider()
 
     def _create_cache_provider(self) -> ICacheProvider:

@@ -8,7 +8,7 @@ Part of T013 - Async/Await Standardization.
 import asyncio
 from typing import Any
 
-from src.config import DEFAULT_MIN_SECONDS_BETWEEN_REQUESTS
+from src.settings import DEFAULT_MIN_SECONDS_BETWEEN_REQUESTS
 
 
 class AsyncConfigLoader:

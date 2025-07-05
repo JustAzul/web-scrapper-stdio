@@ -1,6 +1,6 @@
 """
-ScrapingMetricsCollector - Responsabilidade única: Coleta de métricas de scraping
-Parte da refatoração T003 - Quebrar IntelligentFallbackScraper seguindo SRP
+ScrapingMetricsCollector - Single Responsibility: Collect scraping metrics
+Part of refactoring T003 - Break up IntelligentFallbackScraper following SRP
 """
 
 import threading
@@ -10,14 +10,14 @@ from typing import Any, Dict, Optional
 
 
 class ScrapingMetricsCollector:
-    """Coleta métricas de operações de scraping seguindo Single Responsibility Principle"""
+    """Collects metrics from scraping operations following the Single Responsibility Principle"""
 
     def __init__(self, enabled: bool = True):
         """
-        Inicializa coletor de métricas
+        Initializes the metrics collector
 
         Args:
-            enabled: Se coleta de métricas está habilitada
+            enabled: If metrics collection is enabled
         """
         self.enabled = enabled
         self.last_metrics: Dict[str, Any] = {}
@@ -25,10 +25,10 @@ class ScrapingMetricsCollector:
 
     def start_operation(self) -> float:
         """
-        Inicia cronometragem de uma operação
+        Starts timing an operation
 
         Returns:
-            Timestamp de início da operação
+            Timestamp of the operation's start
         """
         return time.time()
 
@@ -41,14 +41,14 @@ class ScrapingMetricsCollector:
         content_size: Optional[int] = None,
     ) -> None:
         """
-        Registra métricas de sucesso de scraping
+        Records scraping success metrics
 
         Args:
-            start_time: Timestamp de início da operação
-            strategy_used: Estratégia utilizada (playwright_optimized, requests_fallback, etc.)
-            attempts: Número de tentativas realizadas
-            final_url: URL final após redirecionamentos
-            content_size: Tamanho do conteúdo obtido em bytes
+            start_time: Timestamp of the operation's start
+            strategy_used: Strategy used (playwright_optimized, requests_fallback, etc.)
+            attempts: Number of attempts made
+            final_url: Final URL after redirects
+            content_size: Size of the obtained content in bytes
         """
         if not self.enabled:
             return
@@ -75,13 +75,13 @@ class ScrapingMetricsCollector:
         strategy_attempted: Optional[str] = None,
     ) -> None:
         """
-        Registra métricas de falha de scraping
+        Records scraping failure metrics
 
         Args:
-            start_time: Timestamp de início da operação
-            error_message: Mensagem de erro
-            attempts: Número de tentativas realizadas
-            strategy_attempted: Estratégia que foi tentada
+            start_time: Timestamp of the operation's start
+            error_message: Error message
+            attempts: Number of attempts made
+            strategy_attempted: Strategy that was attempted
         """
         if not self.enabled:
             return
@@ -102,10 +102,10 @@ class ScrapingMetricsCollector:
 
     def get_last_metrics(self) -> Dict[str, Any]:
         """
-        Retorna cópia das métricas da última operação
+        Returns a copy of the metrics from the last operation
 
         Returns:
-            Dicionário com métricas da última operação
+            Dictionary with metrics from the last operation
         """
         if not self.enabled:
             return {}
@@ -114,38 +114,38 @@ class ScrapingMetricsCollector:
             return self.last_metrics.copy()
 
     def clear_metrics(self) -> None:
-        """Limpa métricas armazenadas"""
+        """Clears stored metrics"""
         with self._metrics_lock:
             self.last_metrics.clear()
 
     def is_enabled(self) -> bool:
         """
-        Verifica se coleta de métricas está habilitada
+        Checks if metrics collection is enabled
 
         Returns:
-            True se habilitada, False caso contrário
+            True if enabled, False otherwise
         """
         return self.enabled
 
     def enable(self) -> None:
-        """Habilita coleta de métricas"""
+        """Enables metrics collection"""
         self.enabled = True
 
     def disable(self) -> None:
-        """Desabilita coleta de métricas"""
+        """Disables metrics collection"""
         self.enabled = False
         self.clear_metrics()
 
     @contextmanager
     def operation_context(self, operation_name: str):
         """
-        Context manager para medição automática de operações
+        Context manager for automatic measurement of operations
 
         Args:
-            operation_name: Nome da operação sendo medida
+            operation_name: Name of the operation being measured
 
         Yields:
-            Context object com métodos success() e failure()
+            Context object with success() and failure() methods
         """
         start_time = self.start_operation()
 
@@ -181,10 +181,10 @@ class ScrapingMetricsCollector:
 
     def get_performance_summary(self) -> Dict[str, Any]:
         """
-        Retorna resumo de performance da última operação
+        Returns a performance summary of the last operation
 
         Returns:
-            Resumo de performance
+            Performance summary
         """
         metrics = self.get_last_metrics()
         if not metrics:
@@ -199,5 +199,5 @@ class ScrapingMetricsCollector:
         }
 
     def __repr__(self) -> str:
-        """Representação string do coletor de métricas"""
+        """String representation of the metrics collector"""
         return f"ScrapingMetricsCollector(enabled={self.enabled})"

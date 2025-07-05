@@ -9,11 +9,11 @@ from typing import List
 
 from bs4 import BeautifulSoup
 
-from src.logger import Logger
-from src.scraper.infrastructure.external.html_utils import _extract_and_clean_html
+from src.logger import get_logger
 from src.scraper.application.contracts.content_cleaner import IContentCleaner
+from src.scraper.infrastructure.external.html_utils import _extract_and_clean_html
 
-logger = Logger(__name__)
+logger = get_logger(__name__)
 
 
 class DefaultContentCleaner(IContentCleaner):

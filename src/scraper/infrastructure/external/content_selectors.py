@@ -1,7 +1,8 @@
-from src.logger import Logger
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
-logger = Logger(__name__)
+from src.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 async def _wait_for_content_stabilization(

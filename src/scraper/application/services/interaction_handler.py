@@ -1,17 +1,18 @@
 """
 InteractionHandler - Single Responsibility: Element Interactions
 
-Handles the element interaction responsibility extracted from WebScrapingService.scrape_url
-following the Single Responsibility Principle.
+Handles the element interaction responsibility extracted from
+WebScrapingService.scrape_url following the Single Responsibility Principle.
 """
 
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Optional
 
-from src.logger import Logger
+from src.logger import get_logger
+from src.scraper.application.contracts.browser_automation import BrowserAutomation
 from src.scraper.application.services.scraping_request import ScrapingRequest
 
-logger = Logger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -25,11 +26,9 @@ class InteractionResult:
 class InteractionHandler:
     """Single Responsibility: Handle element clicks and interactions"""
 
-    def __init__(
-        self, browser_automation: Any
-    ):  # Replace Any with BrowserAutomationInterface
+    def __init__(self, browser_automation: BrowserAutomation):
         self.browser_automation = browser_automation
-        self.logger = Logger(__name__)
+        self.logger = get_logger(__name__)
 
     async def handle_interaction(self, request: ScrapingRequest) -> InteractionResult:
         """

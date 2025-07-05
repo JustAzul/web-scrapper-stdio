@@ -1,5 +1,6 @@
-from .application.contracts.memory_monitor import MemoryMonitorInterface
 from contextlib import contextmanager
+
+from .application.contracts.memory_monitor import MemoryMonitorInterface
 
 
 class MemoryMonitor(MemoryMonitorInterface):

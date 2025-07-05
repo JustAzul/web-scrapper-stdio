@@ -217,19 +217,6 @@ You can override most configuration options using environment variables:
 - `DEFAULT_TEST_NO_DELAY_THRESHOLD`: Threshold for skipping artificial delays in tests (default: 0.5)
 - `DEBUG_LOGS_ENABLED`: Set to `true` to enable debug-level logs (default: `false`)
 
-### Chunked HTML Processor Tuning  
-The scraper now includes a **memory-aware, chunked HTML processor**.  Default behaviour preserves backward-compatibility, but you can fine-tune processing via environment variables:
-
-| Variable | Default | Description |
-| :-- | :-- | :-- |
-| `CHUNK_ENABLE` | `true` | Set `false` to disable chunked processing globally. |
-| `CHUNK_SIZE_THRESHOLD` | `100000` (bytes) | Minimum HTML size before chunk mode triggers. |
-| `CHUNK_MEMORY_LIMIT_MB` | `100` | Soft RSS limit; processor enters *auto* chunk mode when current RSS > `0.8 * limit` and aborts when RSS > `1.2 * limit`. |
-| `CHUNK_PARSER` | `html.parser` | Parser used by **both** processing paths (`html.parser`, `lxml`, etc.). |
-| `CHUNK_EXTRA_NOISE_CLEANUP` | `false` | When `true`, removes additional noise selectors (`nav`, `.ads`, `.sidebar`, …).  Disabled by default for output parity. |
-
-These map directly to the new `ChunkedHTMLProcessor` constructor parameters for library users.
-
 ---
 
 ## Error Handling & Limitations

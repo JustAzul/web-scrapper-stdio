@@ -8,13 +8,14 @@ from typing import Any, Dict
 from playwright.async_api import Error as PlaywrightError
 from playwright.async_api import async_playwright
 
+from src.core.constants import DEFAULT_TIMEOUT_SECONDS
 from src.enums import OutputFormat
-from src.logger import Logger
+from src.logger import get_logger
 from src.scraper.api.handlers.content_extractor import ContentExtractor
 from src.scraper.api.handlers.output_formatter import OutputFormatter
 from src.scraper.application.services.url_validator import URLValidator
 
-logger = Logger(__name__)
+logger = get_logger(__name__)
 
 
 class ScrapingOrchestrator:
@@ -59,7 +60,7 @@ class ScrapingOrchestrator:
                 page = await browser.new_page()
                 response = await page.goto(
                     normalized_url,
-                    timeout=(kwargs.get("custom_timeout") or 30) * 1000,
+                    timeout=(kwargs.get("custom_timeout") or DEFAULT_TIMEOUT_SECONDS) * 1000,
                 )
 
                 if response and response.status >= 400:

@@ -1,4 +1,7 @@
 """
+DEPRECATED: This module is part of a legacy system and is no longer recommended for use.
+It will be removed in a future version. Please use dependency-injected services instead.
+
 Chunked HTML Processor
 
 This module processes large HTML documents in chunks to avoid memory issues
@@ -21,23 +24,19 @@ from src.core.constants import (
     MEMORY_THRESHOLD_MULTIPLIER,
     NOISE_SELECTORS,
 )
-from src.logger import Logger
+from src.logger import get_logger
 
 from ..monitoring.memory_monitor import MemoryLimitExceededError, MemoryMonitor
 from ..monitoring.processing_metrics import ProcessingMetrics
 from .html_utils import _extract_and_clean_html, remove_elements
 
-logger = Logger(__name__)
+logger = get_logger(__name__)
 
 
 class ChunkedHTMLProcessor:
     """
-    Memory-efficient HTML processor that handles large documents through chunked processing
-    while maintaining complete backward compatibility.
-
-    This class now follows Single Responsibility Principle by delegating:
-    - Memory monitoring to MemoryMonitor
-    - Metrics tracking to ProcessingMetrics
+    Memory-efficient HTML processor that handles large documents
+    through chunked processing while maintaining complete backward compatibility.
     """
 
     def __init__(
@@ -111,7 +110,9 @@ class ChunkedHTMLProcessor:
 
             if use_chunked:
                 logger.debug(
-                    f"Using chunked processing for {url} (size: {content_size_mb:.2f}MB)"
+                    "Using chunked processing for %s (size: %.2fMB)",
+                    url,
+                    content_size_mb,
                 )
                 try:
                     title, clean_html, text_content, error, soup = (
@@ -119,23 +120,37 @@ class ChunkedHTMLProcessor:
                     )
                 except Exception as chunked_error:
                     logger.warning(
-                        f"Chunked processing failed, falling back to original method: {chunked_error}"
+                        "Chunked processing failed, falling back to original method: %s",
+                        chunked_error,
                     )
                     if self.fallback_enabled:
-                        # Use fallback but mark that chunked processing was attempted but failed
-                        title, clean_html, text_content, error, soup = (
-                            self._extract_content_original(
-                                soup, elements_to_remove, url
+                        # Use fallback
+                        (
+                            title,
+                            clean_html,
+                            text_content,
+                            fallback_error,
+                            soup,
+                        ) = self._extract_content_original(
+                            soup, elements_to_remove, url
+                        )
+
+                        # Only create a new error if the fallback ALSO failed.
+                        if fallback_error:
+                            error = (
+                                f"Chunked processing failed: {chunked_error}. "
+                                f"Fell back to original, which also failed: {fallback_error}"
                             )
-                        )
-                        use_chunked = (
-                            False  # Update flag to reflect that fallback was used
-                        )
+                        else:
+                            # The fallback was successful, so there is no error.
+                            error = None
                     else:
-                        raise
+                        raise  # Re-raise if fallback is disabled
             else:
                 logger.debug(
-                    f"Using original processing for {url} (size: {content_size_mb:.2f}MB)"
+                    "Using original processing for %s (size: %.2fMB)",
+                    url,
+                    content_size_mb,
                 )
                 title, clean_html, text_content, error, soup = (
                     self._extract_content_original(soup, elements_to_remove, url)
@@ -154,10 +169,31 @@ class ChunkedHTMLProcessor:
                 chunks_processed=getattr(self, "_chunks_processed", 0),
             )
 
-            logger.debug(
-                f"Content extraction completed for {url} in {time.time() - start_time:.2f}s"
-            )
-            return title or "", clean_html or "", text_content or "", error, soup
+            end_time = time.time()
+            # Ensure we always return a value for soup, even if empty
+            if soup is None:
+                soup = BeautifulSoup("", self.parser)
+
+            if not error:
+                logger.debug(
+                    "Content extraction completed for %s in %.2fs",
+                    url,
+                    end_time - start_time,
+                )
+                return title or "", clean_html or "", text_content or "", error, soup
+            else:
+                logger.error(
+                    f"Error processing {url}: {error}",
+                )
+
+                # Record error metrics
+                self.metrics.record_processing_error(
+                    start_time=start_time,
+                    content_size_mb=content_size_mb,
+                    error_message=error,
+                )
+
+                return "", "", "", error, None
 
         except Exception as e:
             error_msg = f"Content extraction failed: {str(e)}"
@@ -465,15 +501,18 @@ class ChunkedHTMLProcessor:
     async def extract_content_async(
         self, html_content: str, elements_to_remove: List[str], url: str
     ):
-        """Asynchronously extract content without blocking the event loop.
-
-        For most HTML processing operations, the overhead of thread pool execution
-        outweighs the benefits. This method provides async compatibility while
-        running the operation directly.
         """
-        # For most web scraping use cases, HTML processing is I/O bound rather than CPU bound
+        Extracts content from HTML using chunked processing to manage memory.
+
+        """
+        # For most web scraping use cases, HTML processing is
+        # I/O bound rather than CPU bound
         # Running directly is more efficient than thread pool overhead
         return self.extract_content(html_content, elements_to_remove, url)
+
+    def _get_content_size_mb(self, html_content: str) -> float:
+        """Calculate content size in megabytes."""
+        return len(html_content.encode("utf-8")) / BYTES_PER_MB
 
 
 def extract_clean_html_optimized(
@@ -485,7 +524,7 @@ def extract_clean_html_optimized(
     """
     # REFATORAÇÃO: Usar implementação centralizada
     from ...domain.value_objects.extraction_config import ExtractionConfig
-    from ..web_scraping.centralized_html_extractor import (
+    from ..web_scraping.html_extractor import (
         get_centralized_extractor,
     )
 

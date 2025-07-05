@@ -8,15 +8,18 @@ following the Single Responsibility Principle.
 from dataclasses import dataclass
 from typing import Optional
 
-from src.logger import Logger
-from src.scraper.infrastructure.web_scraping.rate_limiting import apply_rate_limiting
-from src.scraper.application.contracts.browser_automation import BrowserAutomationFactory
+from src.logger import get_logger
+from src.scraper.application.contracts.browser_automation import (
+    BrowserAutomation,
+    BrowserAutomationFactory,
+)
 from src.scraper.application.services.scraping_configuration_service import (
     ScrapingConfigurationService,
 )
 from src.scraper.application.services.scraping_request import ScrapingRequest
+from src.scraper.infrastructure.web_scraping.rate_limiting import apply_rate_limiting
 
-logger = Logger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -25,7 +28,7 @@ class NavigationResult:
 
     success: bool
     final_url: str
-    browser_automation: Optional[object]
+    browser_automation: Optional[BrowserAutomation]
     error: Optional[str]
 
 
@@ -60,16 +63,13 @@ class NavigationHandler:
 
     async def navigate(self, request: ScrapingRequest) -> NavigationResult:
         """
-        Navigate to the URL specified in the request.
-
-        Args:
-            request: Scraping request containing URL and configuration
+        Handles URL navigation and browser setup.
 
         Returns:
-            NavigationResult with success status, final URL, browser instance, and any error
+            NavigationResult with success status, final URL,
+            browser instance, and any error
         """
         browser_automation = None
-
         try:
             # Get configuration for this specific request
             actual_timeout = request.get_effective_timeout()
@@ -98,7 +98,8 @@ class NavigationHandler:
                     error=navigation_response.error,
                 )
 
-            # Extract the final URL from browser response (handles redirects and normalization)
+            # Extract the final URL from browser response
+            # (handles redirects and normalization)
             final_url = navigation_response.url or request.url
 
             return NavigationResult(

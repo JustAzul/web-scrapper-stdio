@@ -12,19 +12,18 @@ capabilities following T015 requirements:
 TDD Implementation: GREEN phase - comprehensive performance system.
 """
 
-import asyncio
 import gc
 import time
 from contextlib import asynccontextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from threading import Lock
 from typing import Any, Dict, List, Optional
 
 import psutil
 
-from src.logger import Logger
+from src.logger import get_logger
 
-logger = Logger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -143,7 +142,7 @@ class PerformanceAnalyzer:
 
     def __init__(self, thresholds: Optional[PerformanceThresholds] = None):
         self.thresholds = thresholds or PerformanceThresholds()
-        self.logger = Logger(__name__)
+        self.logger = get_logger(__name__)
 
     def analyze_metrics(
         self, metrics: PerformanceMetrics
@@ -192,8 +191,14 @@ class PerformanceAnalyzer:
                 PerformanceRecommendation(
                     category="timing",
                     priority="HIGH",
-                    issue=f"Total scraping time ({metrics.total_time:.1f}s) exceeds threshold ({self.thresholds.max_total_time}s)",
-                    recommendation="Enable resource blocking, implement caching, or use lighter extraction methods",
+                    issue=(
+                        f"Total scraping time ({metrics.total_time:.1f}s) exceeds "
+                        f"threshold ({self.thresholds.max_total_time}s)"
+                    ),
+                    recommendation=(
+                        "Enable resource blocking, implement caching, or use lighter "
+                        "extraction methods"
+                    ),
                     potential_improvement="30-50% time reduction",
                     implementation_effort="MEDIUM",
                 )
@@ -221,8 +226,14 @@ class PerformanceAnalyzer:
                 PerformanceRecommendation(
                     category="timing",
                     priority="MEDIUM",
-                    issue=f"Content processing time ({metrics.content_processing_time:.1f}s) is slow",
-                    recommendation="Enable chunked processing for large content, optimize HTML parsing",
+                    issue=(
+                        "Content processing time "
+                        f"({metrics.content_processing_time:.1f}s) is slow"
+                    ),
+                    recommendation=(
+                        "Enable chunked processing for large content, optimize "
+                        "HTML parsing"
+                    ),
                     potential_improvement="25-45% processing improvement",
                     implementation_effort="MEDIUM",
                 )
@@ -242,8 +253,14 @@ class PerformanceAnalyzer:
                 PerformanceRecommendation(
                     category="memory",
                     priority="HIGH",
-                    issue=f"Memory usage ({metrics.memory_usage_mb:.1f}MB) exceeds threshold",
-                    recommendation="Enable chunked processing, implement memory monitoring, reduce content size",
+                    issue=(
+                        f"Memory usage ({metrics.memory_usage_mb:.1f}MB) exceeds "
+                        "threshold"
+                    ),
+                    recommendation=(
+                        "Enable chunked processing, implement memory monitoring, "
+                        "reduce content size"
+                    ),
                     potential_improvement="40-60% memory reduction",
                     implementation_effort="MEDIUM",
                 )
@@ -255,8 +272,14 @@ class PerformanceAnalyzer:
                 PerformanceRecommendation(
                     category="memory",
                     priority="MEDIUM",
-                    issue=f"Memory increase ({metrics.memory_delta_mb:.1f}MB) indicates potential leak",
-                    recommendation="Implement proper cleanup, use context managers, force garbage collection",
+                    issue=(
+                        f"Memory increase ({metrics.memory_delta_mb:.1f}MB) indicates "
+                        "potential leak"
+                    ),
+                    recommendation=(
+                        "Implement proper cleanup, use context managers, force garbage "
+                        "collection"
+                    ),
                     potential_improvement="Memory leak prevention",
                     implementation_effort="LOW",
                 )
@@ -392,7 +415,7 @@ class PerformanceMonitor:
         self.start_memory = 0.0
         self.peak_memory = 0.0
         self._lock = Lock()
-        self.logger = Logger(__name__)
+        self.logger = get_logger(__name__)
 
     def start_monitoring(self):
         """Start performance monitoring."""
@@ -513,7 +536,7 @@ class PerformanceProfiler:
 
     def __init__(self):
         self.profiles: List[Dict[str, Any]] = []
-        self.logger = Logger(__name__)
+        self.logger = get_logger(__name__)
 
     async def profile_operation(
         self, operation_name: str, operation_func, *args, **kwargs
@@ -566,7 +589,8 @@ class PerformanceProfiler:
             )
         elif profile["memory_leaked"] > 50.0:
             self.logger.warning(
-                f"Memory leak detected in {operation_name}: {profile['memory_leaked']:.1f}MB"
+                f"Memory leak detected in {operation_name}: "
+                f"{profile['memory_leaked']:.1f}MB"
             )
 
         return result

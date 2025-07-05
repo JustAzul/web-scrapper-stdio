@@ -1,27 +1,23 @@
 """
-FallbackOrchestrator - Orquestração das responsabilidades de fallback scraping
-Parte da refatoração T003 - Quebrar IntelligentFallbackScraper seguindo SRP
+FallbackOrchestrator - Orchestration of fallback scraping responsibilities
+Part of refactoring T003 - Break up IntelligentFallbackScraper following SRP
 """
 
 import time
 from typing import Any, Dict, Optional
 
 import httpx
-from playwright.async_api import (
-    Error as PlaywrightError,
-)
-from playwright.async_api import (
-    TimeoutError as PlaywrightTimeoutError,
-)
+from playwright.async_api import Error as PlaywrightError
+from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
-from src.logger import Logger
+from src.logger import get_logger
 
 from ...infrastructure.circuit_breaker_pattern import CircuitBreakerPattern
 from ...infrastructure.monitoring.scraping_metrics_collector import (
     ScrapingMetricsCollector,
 )
 from ...infrastructure.retry_strategy_pattern import RetryStrategyPattern
-from ...infrastructure.web_scraping.intelligent_fallback_scraper import (
+from ...infrastructure.web_scraping.fallback_scraper import (
     FallbackConfig,
     FallbackStrategy,
     ScrapingResult,
@@ -33,76 +29,51 @@ from ...infrastructure.web_scraping.requests_scraping_strategy import (
     RequestsScrapingStrategy,
 )
 from .scraping_request import ScrapingRequest
+from injector import inject
 
-logger = Logger(__name__)
+logger = get_logger(__name__)
 
 
+@inject
 class FallbackOrchestrator:
-    """Orquestra estratégias de fallback seguindo SRP e Dependency Injection"""
+    """
+    Orchestrates scraping attempts with a fallback mechanism between different
+    strategies.
+    """
 
+    @inject
     def __init__(
         self,
-        config: Optional[FallbackConfig] = None,
-        circuit_breaker: Optional[CircuitBreakerPattern] = None,
-        retry_strategy: Optional[RetryStrategyPattern] = None,
-        metrics_collector: Optional[ScrapingMetricsCollector] = None,
-        playwright_strategy: Optional[PlaywrightScrapingStrategy] = None,
-        requests_strategy: Optional[RequestsScrapingStrategy] = None,
+        playwright_strategy: PlaywrightScrapingStrategy,
+        requests_strategy: RequestsScrapingStrategy,
+        circuit_breaker: CircuitBreakerPattern,
+        metrics_collector: ScrapingMetricsCollector,
     ):
-        """
-        Inicializa orquestrador com injeção de dependências
-
-        Args:
-            config: Configuração de fallback
-            circuit_breaker: Padrão circuit breaker (injetado)
-            retry_strategy: Estratégia de retry (injetado)
-            metrics_collector: Coletor de métricas (injetado)
-            playwright_strategy: Estratégia Playwright (injetado)
-            requests_strategy: Estratégia requests (injetado)
-        """
-        self.config = config or FallbackConfig()
-
-        # Dependency Injection - permite mocking para testes
-        self.circuit_breaker = circuit_breaker or CircuitBreakerPattern(
-            failure_threshold=self.config.circuit_breaker_threshold,
-            recovery_timeout=self.config.circuit_breaker_recovery_seconds,
-        )
-
-        self.retry_strategy = retry_strategy or RetryStrategyPattern(
-            max_retries=self.config.max_retries, initial_delay=1.0
-        )
-
-        self.metrics_collector = metrics_collector or ScrapingMetricsCollector(
-            enabled=True
-        )
-
-        self.playwright_strategy = playwright_strategy or PlaywrightScrapingStrategy(
-            self.config
-        )
-
-        self.requests_strategy = requests_strategy or RequestsScrapingStrategy(
-            self.config
-        )
+        """Initializes the orchestrator with scraping strategies and helpers."""
+        self.playwright_strategy = playwright_strategy
+        self.requests_strategy = requests_strategy
+        self.circuit_breaker = circuit_breaker
+        self.metrics_collector = metrics_collector
 
     async def scrape_url(self, request: ScrapingRequest) -> ScrapingResult:
         """
-        Executa scraping com fallback inteligente
+        Executes scraping with intelligent fallback
 
         Args:
-            request: Objeto com todos os parâmetros da requisição
+            request: Object with all request parameters
 
         Returns:
-            Resultado do scraping com metadados
+            Scraping result with metadata
         """
         start_time = self.metrics_collector.start_operation()
         attempts = 0
 
-        # Monta headers a partir do request
+        # Build headers from the request
         custom_headers = {}
         if request.user_agent:
             custom_headers["User-Agent"] = request.user_agent
 
-        # Verifica circuit breaker
+        # Check circuit breaker
         if self.circuit_breaker.is_open:
             error_msg = "Circuit breaker is open. Service is temporarily unavailable."
 
@@ -119,7 +90,7 @@ class FallbackOrchestrator:
                 performance_metrics={"total_time": time.time() - start_time},
             )
 
-        # Estratégia 1: Playwright
+        # Strategy 1: Playwright
         try:
             attempts += 1
             content = await self.playwright_strategy.scrape_url(request, custom_headers)
@@ -154,7 +125,7 @@ class FallbackOrchestrator:
             )
             self.circuit_breaker.record_failure()
 
-        # Estratégia 2: Fallback para requests
+        # Strategy 2: Fallback to requests
         try:
             attempts += 1
             content = await self.requests_strategy.scrape_url(
@@ -209,11 +180,11 @@ class FallbackOrchestrator:
             )
 
     def get_metrics(self) -> Dict[str, Any]:
-        """Retorna métricas da última operação"""
+        """Returns metrics from the last operation"""
         return self.metrics_collector.get_last_metrics()
 
     def get_circuit_breaker_status(self) -> Dict[str, Any]:
-        """Retorna status do circuit breaker"""
+        """Returns the status of the circuit breaker"""
         return {
             "state": self.circuit_breaker.get_state(),
             "failure_count": self.circuit_breaker.get_failure_count(),

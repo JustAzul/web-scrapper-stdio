@@ -1,75 +1,72 @@
-# Stage 1: Builder
-# Install all dependencies, including build-time dependencies
+# ---- Builder Stage ----
+# Installs all dependencies, including playwright browsers
 FROM python:3.11-slim AS builder
 
-WORKDIR /app
+# Set env vars
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH="/opt/venv/bin:$PATH"
 
-# Set environment variables
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONPATH=/app
-ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright
-
-# Install system dependencies needed for Playwright and application
+# Install system dependencies for Playwright
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Playwright browser dependencies
     libnss3 libnspr4 libasound2 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdbus-1-3 \
     libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
     libgbm1 libglib2.0-0 libgtk-3-0 libpango-1.0-0 libcairo2 \
     libatspi2.0-0 libx11-6 libxcb1 libxext6 libxcursor1 libxi6 libxtst6 \
-    libpangocairo-1.0-0 libxss1 \
-    curl ca-certificates fonts-liberation libappindicator3-1 \
-    lsb-release xdg-utils git && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    # Other dependencies
+    curl \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies in a virtual environment
+WORKDIR /app
+
+# Create and activate virtual environment
 RUN python -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
 
-COPY requirements.txt requirements.txt
-COPY requirements-dev.txt requirements-dev.txt
-RUN pip install --no-cache-dir -r requirements.txt -r requirements-dev.txt
+# Install python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Install the project in editable mode to make its modules available
-COPY . .
-RUN pip install -e .
+# Install playwright browsers
+RUN playwright install --with-deps
 
-# Install Playwright and its browser dependencies
-RUN playwright install --with-deps chromium
-
-
-# Stage 2: Final Image
-# A slim image with only the necessary artifacts
+# ---- Final Stage ----
+# The actual production image
 FROM python:3.11-slim AS final
 
 WORKDIR /app
 
-# Set environment variables
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONPATH=/app
-ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright
+# Set env vars
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH="/opt/venv/bin:$PATH"
+
+# Set the python path to ensure modules are found correctly from the root
+ENV PYTHONPATH /app
+
+# Install runtime dependencies for Playwright (same as builder stage)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Playwright browser dependencies
+    libnss3 libnspr4 libasound2 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdbus-1-3 \
+    libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
+    libgbm1 libglib2.0-0 libgtk-3-0 libpango-1.0-0 libcairo2 \
+    libatspi2.0-0 libx11-6 libxcb1 libxext6 libxcursor1 libxi6 libxtst6 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy virtual environment from builder
 COPY --from=builder /opt/venv /opt/venv
 
-# Copy Playwright browser files and their system dependencies
-COPY --from=builder /opt/playwright /opt/playwright
-COPY --from=builder /usr/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu
-COPY --from=builder /lib/x86_64-linux-gnu /lib/x86_64-linux-gnu
+# Copy playwright browser binaries from builder
+# Note: The location may vary based on playwright version, /root/.cache/ms-playwright is common
+COPY --from=builder /root/.cache/ms-playwright /root/.cache/ms-playwright
 
-# Set the path to use the virtual environment
-ENV PATH="/opt/venv/bin:$PATH"
-ENV LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu
+# Copy application source
+COPY src/ ./src/
 
-# Copy source code and test configuration
-COPY ./src /app/src
-COPY ./tests /app/tests
-COPY ./pytest.ini /app/pytest.ini
-COPY ./requirements.txt /app/requirements.txt
-COPY ./requirements-dev.txt /app/requirements-dev.txt
-COPY ./ruff.toml /app/ruff.toml
-COPY ./pyproject.toml /app/pyproject.toml
+# Expose the port (optional, for reference)
+EXPOSE 8000
 
-# Run the script when the container starts
-CMD ["python", "src/main.py"] 
+# Default command to run the MCP server
+CMD ["python", "src/mcp_server.py"] 

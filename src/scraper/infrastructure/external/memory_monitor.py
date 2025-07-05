@@ -1,6 +1,9 @@
+from __future__ import annotations
+import psutil
 from typing import Optional
+from logging import Logger
 
-from src.logger import Logger
+from src.logger import get_logger
 
 
 class MemoryMonitor:
@@ -9,7 +12,7 @@ class MemoryMonitor:
     ):
         self.memory_limit_mb = memory_limit_mb
         self.enabled = enabled
-        self.logger = logger or Logger(__name__)
+        self.logger = logger or get_logger(__name__)
 
     def __enter__(self):
         if not self.enabled:

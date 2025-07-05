@@ -1,15 +1,17 @@
 """
 ContentExtractionHandler - Single Responsibility: Content Extraction
 
-Handles the content extraction responsibility extracted from WebScrapingService.scrape_url
-following the Single Responsibility Principle.
+Handles the content extraction responsibility extracted from
+WebScrapingService.scrape_url following the Single Responsibility Principle.
 """
 
 import asyncio
 from dataclasses import dataclass
-from typing import Any, List, Optional
+from typing import List, Optional
+from logging import Logger
 
-from src.logger import Logger
+from src.logger import get_logger
+from src.scraper.application.contracts.browser_automation import BrowserAutomation
 from src.scraper.application.services.content_processing_service import (
     ContentProcessingService,
 )
@@ -37,11 +39,11 @@ class ContentExtractionHandler:
     ):
         """Initialize content extraction handler with dependencies."""
         self.content_processor = content_processor
-        self.logger = logger or Logger(__name__)
+        self.logger = logger or get_logger(__name__)
 
     async def extract_and_process_content(
         self,
-        browser_automation: Any,  # Replace Any with BrowserAutomationInterface
+        browser_automation: BrowserAutomation,
         request: ScrapingRequest,
         final_url: str,
         elements_to_remove: List[str],
@@ -72,7 +74,10 @@ class ContentExtractionHandler:
             if not self.content_processor.validate_content_length(
                 text_content, min_len, final_url
             ):
-                error_msg = f"[ERROR] No significant text content extracted (too short, less than {min_len} characters)."
+                error_msg = (
+                    "[ERROR] No significant text content extracted "
+                    f"(too short, less than {min_len} characters)."
+                )
                 return ExtractionResult(
                     success=False, title=page_title, content=None, error=error_msg
                 )

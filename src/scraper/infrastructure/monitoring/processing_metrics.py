@@ -5,10 +5,10 @@ This module provides metrics tracking functionality that was extracted
 from ChunkedHTMLProcessor to follow Single Responsibility Principle.
 """
 
-import time
 import threading
-from typing import Dict, Any
+import time
 from contextlib import contextmanager
+from typing import Any, Dict
 
 
 class ProcessingMetrics:

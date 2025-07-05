@@ -61,7 +61,10 @@ class ScrapingRequest:
         return bool(self.click_selector and self.click_selector.strip())
 
     def get_effective_timeout(self) -> Optional[int]:
-        """Get the effective timeout, preferring timeout_seconds over legacy custom_timeout."""
+        """
+        Get the effective timeout, preferring timeout_seconds
+        over legacy custom_timeout.
+        """
         return (
             self.timeout_seconds
             if self.timeout_seconds is not None

@@ -6,21 +6,23 @@ Parte da refatoração T001 - Quebrar extract_text_from_url seguindo SRP
 from typing import Optional
 
 from bs4 import BeautifulSoup
-from markdownify import markdownify as md
 
 from src.enums import OutputFormat
-from src.logger import Logger
+from src.logger import get_logger
 from src.output_format_handler import (
     TRUNCATION_NOTICE,
     to_markdown,
     to_text,
 )
 
-logger = Logger(__name__)
+logger = get_logger(__name__)
 
 
 class OutputFormatter:
-    """Formata conteúdo para diferentes outputs seguindo Single Responsibility Principle"""
+    """
+    Formata conteúdo para diferentes outputs
+    seguindo Single Responsibility Principle
+    """
 
     def __init__(self) -> None:
         self.logger = logger
@@ -43,13 +45,13 @@ class OutputFormatter:
             Conteúdo formatado
         """
         try:
-            if output_format is OutputFormat.TEXT:
-                return self.format_text(soup) if soup else content
-            elif output_format is OutputFormat.HTML:
-                return self.format_html(content, soup)
-            elif output_format is OutputFormat.MARKDOWN:
-                return md(content, heading_style="ATX")
-            else:  # MARKDOWN (default)
+            if output_format == OutputFormat.MARKDOWN:
+                return self.format_markdown(content)
+            elif output_format == OutputFormat.TEXT:
+                return self.format_text(soup)
+            elif output_format == OutputFormat.HTML:
+                return self.format_html(content)
+            else:  # Fallback for any unhandled format
                 return self.format_markdown(content)
 
         except Exception as e:
@@ -92,13 +94,12 @@ class OutputFormatter:
             self.logger.error(f"Erro convertendo para texto: {e}")
             return ""
 
-    def format_html(self, clean_html: str, soup: Optional[BeautifulSoup] = None) -> str:
+    def format_html(self, clean_html: str) -> str:
         """
         Formata para HTML (retorna body ou HTML limpo)
 
         Args:
             clean_html: HTML já limpo
-            soup: Objeto BeautifulSoup opcional
 
         Returns:
             Conteúdo HTML formatado

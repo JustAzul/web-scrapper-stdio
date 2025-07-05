@@ -13,15 +13,16 @@ following T025 requirements:
 TDD Implementation: GREEN phase - comprehensive retry system.
 """
 
+from __future__ import annotations
+
 import asyncio
-import random
 import time
 from dataclasses import dataclass
 from enum import Enum
 from functools import wraps
-from typing import Any, Callable, Dict, List, Optional, Type, Union
+from typing import Any, Callable, Dict, List, Optional, Type
 
-from src.logger import Logger
+from src.logger import get_logger
 from src.scraper.domain.exceptions import (
     ContentExtractionError,
     NetworkError,
@@ -29,7 +30,7 @@ from src.scraper.domain.exceptions import (
     TimeoutError,
 )
 
-logger = Logger(__name__)
+logger = get_logger(__name__)
 
 
 class RetryStrategy(Enum):
@@ -123,7 +124,7 @@ class CircuitBreaker:
         self.failure_count = 0
         self.success_count = 0
         self.last_failure_time = 0.0
-        self.logger = Logger(__name__)
+        self.logger = get_logger(__name__)
 
     def can_execute(self) -> bool:
         """Check if execution is allowed."""
@@ -172,7 +173,7 @@ class RetryManager:
         self.default_config = RetryConfig()
         self.error_configs: Dict[Type[Exception], RetryConfig] = {}
         self.circuit_breakers: Dict[str, CircuitBreaker] = {}
-        self.logger = Logger(__name__)
+        self.logger = get_logger(__name__)
 
     def configure_error_retry(self, error_type: Type[Exception], config: RetryConfig):
         """Configure retry behavior for specific error types."""

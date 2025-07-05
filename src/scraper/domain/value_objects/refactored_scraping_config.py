@@ -9,6 +9,7 @@ Maintains backward compatibility while following SRP.
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
+from src.core.constants import DEFAULT_TIMEOUT_SECONDS
 from src.output_format_handler import OutputFormat
 from src.scraper.domain.value_objects.value_objects import TimeoutValue
 
@@ -69,7 +70,9 @@ class RefactoredScrapingConfig:
             "max_length": self.output_config.max_length,
             "user_agent": self.browser_config.user_agent,
             "click_selector": self.processing_config.click_selector,
-            "custom_elements_to_remove": self.processing_config.custom_elements_to_remove,
+            "custom_elements_to_remove": (
+                self.processing_config.custom_elements_to_remove
+            ),
         }
 
     @classmethod
@@ -84,7 +87,7 @@ class RefactoredScrapingConfig:
 
         # Create timeout config
         timeout_config = TimeoutConfig(
-            page_timeout=TimeoutValue(config_dict.get("custom_timeout", 30)),
+            page_timeout=TimeoutValue(config_dict.get("custom_timeout", DEFAULT_TIMEOUT_SECONDS)),
             grace_period=TimeoutValue(config_dict.get("grace_period_seconds", 2.0)),
         )
 

@@ -11,21 +11,20 @@ Follows the Adapter pattern to maintain compatibility with existing code.
 from typing import Dict, List, Optional
 
 from src.core.constants import DEFAULT_FALLBACK_TIMEOUT, HTTP_SUCCESS_STATUS
-from src.logger import Logger
+from src.logger import get_logger
 from src.scraper.application.contracts.browser_automation import (
     BrowserAutomation,
     BrowserAutomationFactory,
     BrowserConfiguration,
     BrowserResponse,
 )
-from src.scraper.infrastructure.web_scraping.intelligent_fallback_scraper import (
+from src.scraper.infrastructure.web_scraping.fallback_scraper import (
     FallbackConfig,
     FallbackStrategy,
     IntelligentFallbackScraper,
-    ScrapingResult,
 )
 
-logger = Logger(__name__)
+logger = get_logger(__name__)
 
 
 class FallbackBrowserAutomation(BrowserAutomation):
@@ -33,7 +32,7 @@ class FallbackBrowserAutomation(BrowserAutomation):
     Adapter that integrates intelligent fallback scraper with browser automation interface.
 
     This class adapts the IntelligentFallbackScraper to work with the existing
-    BrowserAutomationInterface, providing seamless compatibility with current code.
+    browser automation interface, providing a consistent way to perform scraping
     """
 
     def __init__(
@@ -72,7 +71,7 @@ class FallbackBrowserAutomation(BrowserAutomation):
             logger.debug(f"Fallback browser navigating to: {url}")
 
             # Use intelligent scraper with custom headers if set
-            result: ScrapingResult = await self.scraper.scrape_url(
+            result = await self.scraper.scrape_url(
                 url=url, custom_headers=self._custom_headers
             )
 

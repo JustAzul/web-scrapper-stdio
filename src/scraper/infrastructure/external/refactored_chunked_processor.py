@@ -1,15 +1,19 @@
 """
-RefactoredChunkedHTMLProcessor - Orquestração das responsabilidades refatoradas
-Parte da refatoração T002 - Quebrar ChunkedHTMLProcessor seguindo SRP
+DEPRECATED: This module is part of a legacy system and is no longer recommended for use.
+It will be removed in a future version. Please use dependency-injected services instead.
+
+RefactoredChunkedHTMLProcessor - Orchestration of refactored responsibilities
+Part of refactoring T002 - Break up ChunkedHTMLProcessor following SRP
 """
 
 import time
+from logging import Logger
 from typing import Any, Dict, List, Optional, Tuple
 
 from bs4 import BeautifulSoup
 
 from src.core.constants import BYTES_PER_MB, DEFAULT_CHUNK_SIZE_THRESHOLD
-from src.logger import Logger
+from src.logger import get_logger
 
 from .chunking_strategy import ChunkingStrategy
 from .content_processor import ContentProcessor
@@ -50,11 +54,11 @@ class RefactoredChunkedHTMLProcessor:
             fallback_handler: Injected fallback handler.
             logger: Injected logger.
         """
-        # Configurações básicas
+        # Basic settings
         self.parser = parser
         self.extra_noise_cleanup = extra_noise_cleanup
 
-        # Dependency Injection - permite mocking para testes
+        # Dependency Injection - allows mocking for tests
         self.memory_monitor = memory_monitor or MemoryMonitor(
             memory_limit_mb=memory_limit_mb, enabled=True
         )
@@ -69,11 +73,11 @@ class RefactoredChunkedHTMLProcessor:
             enabled=fallback_enabled
         )
 
-        # Para compatibilidade com interface original
+        # For compatibility with original interface
         self.enable_chunking = enable_chunking
         self.fallback_enabled = fallback_enabled
 
-        self.logger = logger or Logger(__name__)
+        self.logger = logger or get_logger(__name__)
 
     def extract_content(
         self, html_content: str, elements_to_remove: List[str], url: str
@@ -84,15 +88,15 @@ class RefactoredChunkedHTMLProcessor:
         Optional[BeautifulSoup],
     ]:
         """
-        Extrai conteúdo mantendo interface original do ChunkedHTMLProcessor
+        Extracts content while maintaining the original interface of ChunkedHTMLProcessor
 
         Args:
-            html_content: HTML para processar
-            elements_to_remove: Elementos para remover
-            url: URL sendo processada
+            html_content: HTML to process
+            elements_to_remove: Elements to remove
+            url: URL being processed
 
         Returns:
-            Tupla de (title, clean_html, text_content, error, soup)
+            Tuple of (title, clean_html, text_content, error, soup)
         """
         start_time = self.metrics.start_processing()
         content_size_mb = len(html_content.encode("utf-8")) / BYTES_PER_MB
@@ -105,7 +109,7 @@ class RefactoredChunkedHTMLProcessor:
             # Parse HTML
             soup = BeautifulSoup(html_content, self.parser)
 
-            # Determina se deve usar chunking
+            # Determine if chunking should be used
             use_chunked = self.chunking_strategy.should_use_chunked_processing(
                 html_content
             )
@@ -115,7 +119,7 @@ class RefactoredChunkedHTMLProcessor:
                     f"Using chunked processing for {url} (size: {content_size_mb:.2f}MB)"
                 )
 
-                # Usa fallback handler para tentar chunked primeiro, depois original
+                # Use fallback handler to try chunked first, then original
                 def primary_operation():
                     return self._extract_content_chunked(soup, elements_to_remove)
 
@@ -127,7 +131,9 @@ class RefactoredChunkedHTMLProcessor:
                         primary_operation, fallback_operation
                     )
                 )
-                use_chunked = error is None  # Se erro, significa que usou fallback
+                use_chunked = (
+                    error is None
+                )  # If there is an error, it means fallback was used
 
             else:
                 self.logger.debug(
@@ -137,7 +143,7 @@ class RefactoredChunkedHTMLProcessor:
                     soup, elements_to_remove
                 )
 
-            # Registra métricas de sucesso
+            # Record success metrics
             if error is None:
                 self.metrics.record_processing_success(
                     start_time=start_time,
@@ -157,7 +163,7 @@ class RefactoredChunkedHTMLProcessor:
             error_msg = f"Content extraction failed: {str(e)}"
             self.logger.error(f"Error processing {url}: {error_msg}")
 
-            # Registra métricas de erro
+            # Record error metrics
             self.metrics.record_processing_error(
                 start_time=start_time,
                 content_size_mb=content_size_mb,
@@ -169,9 +175,9 @@ class RefactoredChunkedHTMLProcessor:
     def _extract_content_chunked(
         self, soup: BeautifulSoup, elements_to_remove: List[str]
     ) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]:
-        """Extrai conteúdo usando processamento chunked"""
+        """Extracts content using chunked processing"""
         try:
-            # Monitora memória durante processamento
+            # Monitor memory during processing
             with self.memory_monitor:
                 return self.content_processor.extract_content_chunked(
                     soup, elements_to_remove, self.chunking_strategy
@@ -182,36 +188,36 @@ class RefactoredChunkedHTMLProcessor:
     def _extract_content_original(
         self, soup: BeautifulSoup, elements_to_remove: List[str]
     ) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]:
-        """Extrai conteúdo usando método original"""
+        """Extracts content using the original method"""
         return self.content_processor.extract_content_original(soup, elements_to_remove)
 
     def get_last_processing_metrics(self) -> Dict[str, Any]:
-        """Retorna métricas do último processamento"""
+        """Returns metrics from the last processing run"""
         return self.metrics.get_last_metrics()
 
     async def extract_content_async(
         self, html_content: str, elements_to_remove: List[str], url: str
     ):
-        """Wrapper assíncrono para compatibilidade"""
+        """Asynchronous wrapper for compatibility"""
         return self.extract_content(html_content, elements_to_remove, url)
 
-    # Propriedades para compatibilidade com interface original
+    # Properties for compatibility with the original interface
     @property
     def noise_selectors(self):
-        """Compatibilidade com interface original"""
+        """Compatibility with the original interface"""
         return self.content_processor.noise_selectors
 
     def _should_use_chunked_processing(self, html_content: str) -> bool:
-        """Compatibilidade com interface original"""
+        """Compatibility with the original interface"""
         return self.chunking_strategy.should_use_chunked_processing(html_content)
 
 
-# Funções de compatibilidade com interface original
+# Functions for compatibility with the original interface
 def extract_clean_html_optimized(
     html_content: str, elements_to_remove: List[str], url: str, **processor_kwargs
 ) -> Tuple[str, str, str, Optional[str], Optional[BeautifulSoup]]:
     """
-    Função de compatibilidade que usa o processor refatorado
+    Compatibility function that uses the refactored processor
     """
     processor = RefactoredChunkedHTMLProcessor(**processor_kwargs)
     return processor.extract_content(html_content, elements_to_remove, url)
@@ -223,7 +229,7 @@ def create_chunked_processor(
     memory_limit_mb: int = 150,
 ) -> RefactoredChunkedHTMLProcessor:
     """
-    Factory function de compatibilidade
+    Compatibility factory function
     """
     return RefactoredChunkedHTMLProcessor(
         enable_chunking=enable_chunking,

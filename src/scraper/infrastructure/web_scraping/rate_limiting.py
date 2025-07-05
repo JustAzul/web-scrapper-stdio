@@ -3,10 +3,10 @@ import time
 from typing import Optional
 from urllib.parse import urlparse
 
-from src.config import DEFAULT_MIN_SECONDS_BETWEEN_REQUESTS
-from src.logger import Logger
+from src.logger import get_logger
+from src.settings import DEFAULT_MIN_SECONDS_BETWEEN_REQUESTS
 
-logger = Logger(__name__)
+logger = get_logger(__name__)
 
 _domain_access_times = {}
 _domain_lock = asyncio.Lock()

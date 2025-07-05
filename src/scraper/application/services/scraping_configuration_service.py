@@ -9,17 +9,17 @@ import secrets
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
-from src.config import DEFAULT_TIMEOUT_SECONDS
 from src.core.constants import (
     DEFAULT_ACCEPT_LANGUAGES,
     DEFAULT_BROWSER_VIEWPORTS,
     DEFAULT_ELEMENTS_TO_REMOVE,
     DEFAULT_USER_AGENTS,
 )
-from src.logger import Logger
+from src.logger import get_logger
 from src.scraper.application.contracts.browser_automation import BrowserConfiguration
+from src.settings import DEFAULT_TIMEOUT_SECONDS
 
-logger = Logger(__name__)
+logger = get_logger(__name__)
 
 
 class ScrapingConfigurationService:

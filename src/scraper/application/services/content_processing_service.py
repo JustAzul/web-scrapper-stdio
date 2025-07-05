@@ -8,8 +8,7 @@ from typing import Optional, Tuple
 
 from bs4 import BeautifulSoup
 
-from src.config import DEFAULT_MIN_CONTENT_LENGTH, DEFAULT_MIN_CONTENT_LENGTH_SEARCH_APP
-from src.logger import Logger
+from src.logger import get_logger
 from src.output_format_handler import (
     OutputFormat,
     to_markdown,
@@ -18,8 +17,12 @@ from src.output_format_handler import (
 )
 from src.scraper.infrastructure.external.html_utils import _extract_and_clean_html
 from src.scraper.infrastructure.web_scraping.rate_limiting import get_domain_from_url
+from src.settings import (
+    DEFAULT_MIN_CONTENT_LENGTH,
+    DEFAULT_MIN_CONTENT_LENGTH_SEARCH_APP,
+)
 
-logger = Logger(__name__)
+logger = get_logger(__name__)
 
 
 class ContentProcessingService:
@@ -83,7 +86,9 @@ class ContentProcessingService:
         except Exception as e:
             # Fallback to original method if chunked processing fails
             logger.warning(
-                f"Chunked processing failed for {url}, falling back to original method: {e}"
+                "Chunked processing failed for %s, falling back to original: %s",
+                url,
+                e,
             )
 
             try:
@@ -92,7 +97,9 @@ class ContentProcessingService:
                 )
             except Exception as fallback_error:
                 logger.error(
-                    f"Both chunked and original processing failed for {url}: {fallback_error}"
+                    "Both chunked and original processing failed for %s: %s",
+                    url,
+                    fallback_error,
                 )
                 return (
                     None,
@@ -145,7 +152,9 @@ class ContentProcessingService:
         """
         if not text_content or len(text_content) < min_length:
             logger.warning(
-                f"No significant text content extracted (length < {min_length}) at {url}"
+                "No significant text content extracted (length < %d) at %s",
+                min_length,
+                url,
             )
             return False
         return True
@@ -209,3 +218,16 @@ class ContentProcessingService:
             formatted = truncate_content(formatted, max_length)
 
         return formatted
+
+    def is_content_significant(
+        self, text_content: Optional[str], min_length: int, url: str
+    ) -> bool:
+        """Check if the extracted text content is significant."""
+        if not text_content or len(text_content) < min_length:
+            logger.warning(
+                "No significant text content extracted (length < %d) at %s",
+                min_length,
+                url,
+            )
+            return False
+        return True

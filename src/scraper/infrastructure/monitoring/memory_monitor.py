@@ -7,9 +7,9 @@ from ChunkedHTMLProcessor to follow Single Responsibility Principle.
 
 from typing import Dict
 
-from src.logger import Logger
+from src.logger import get_logger
 
-logger = Logger(__name__)
+logger = get_logger(__name__)
 
 
 class MemoryLimitExceededError(RuntimeError):

@@ -1,12 +1,12 @@
-from playwright.async_api import (
-    TimeoutError as PlaywrightTimeoutError,
-    Error as PlaywrightError,
-)
 import re
-from src.logger import Logger
-from src.core.constants import CLOUDFLARE_PATTERNS, NOT_FOUND_PATTERNS
 
-logger = Logger(__name__)
+from playwright.async_api import Error as PlaywrightError
+from playwright.async_api import TimeoutError as PlaywrightTimeoutError
+
+from src.core.constants import CLOUDFLARE_PATTERNS, NOT_FOUND_PATTERNS
+from src.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def _detect_cloudflare_challenge(html_content):

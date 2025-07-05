@@ -48,9 +48,9 @@ class ScraperError(Exception):
             "context": self.context,
             "recoverable": self.recoverable,
             "retry_after": self.retry_after,
-            "original_exception": str(self.original_exception)
-            if self.original_exception
-            else None,
+            "original_exception": (
+                str(self.original_exception) if self.original_exception else None
+            ),
         }
 
 
@@ -219,7 +219,9 @@ class MemoryError(ResourceError):
     def __init__(self, memory_usage_mb: float, limit_mb: float, **kwargs):
         super().__init__(
             resource_type="memory",
-            message=f"Memory usage {memory_usage_mb:.1f}MB exceeds limit {limit_mb:.1f}MB",
+            message=(
+                f"Memory usage {memory_usage_mb:.1f}MB exceeds limit {limit_mb:.1f}MB"
+            ),
             context={"memory_usage_mb": memory_usage_mb, "limit_mb": limit_mb},
             **kwargs,
         )
@@ -323,6 +325,26 @@ def get_retry_delay(exception: Exception) -> Optional[float]:
     return None
 
 
+def get_recommended_retry_delay(
+    exception: Exception,
+    retry_config: Optional[Dict[str, Any]] = None,
+    current_attempt: int = 0,
+) -> Optional[float]:
+    """
+    Determines the recommended retry delay based on exception type and retry config.
+
+    Returns:
+        Optional[float]: Recommended retry delay in seconds, or None if
+        no retry recommended
+    """
+    if isinstance(exception, ScraperError):
+        if exception.retryable:
+            # Simple exponential backoff for now
+            return 2**current_attempt * get_retry_delay(exception)
+
+    return None
+
+
 # Export all exception classes and utilities
 __all__ = [
     # Base exception
@@ -350,4 +372,5 @@ __all__ = [
     "wrap_exception",
     "is_recoverable_error",
     "get_retry_delay",
+    "get_recommended_retry_delay",
 ]

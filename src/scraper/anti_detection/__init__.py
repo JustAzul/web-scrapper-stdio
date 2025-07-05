@@ -21,11 +21,11 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
-from src.logger import Logger
+from src.logger import get_logger
 
 from .config import AntiDetectionConfig
 
-logger = Logger(__name__)
+logger = get_logger(__name__)
 
 # Secure random generator instance for anti-detection
 _secure_random = secrets.SystemRandom()
@@ -71,6 +71,7 @@ class UserAgentProfile:
     platform: Platform
     version: str
     market_share: float  # For weighted selection
+    headers: Dict[str, str] = field(default_factory=dict)
 
 
 class UserAgentRotator:
@@ -78,71 +79,121 @@ class UserAgentRotator:
 
     def __init__(self, config: AntiDetectionConfig):
         self.config = config
-        self.logger = Logger(__name__)
+        self.logger = get_logger(__name__)
         self.current_profile: Optional[UserAgentProfile] = None
         self.request_count = 0
         self.profiles = self._load_user_agent_profiles()
 
     def _load_user_agent_profiles(self) -> List[UserAgentProfile]:
         """Load realistic user-agent profiles with current browser versions."""
-        profiles = [
-            # Chrome profiles (highest market share)
-            UserAgentProfile(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                browser_type=BrowserType.CHROME,
-                platform=Platform.WINDOWS,
-                version="120.0.0.0",
-                market_share=0.65,
-            ),
-            UserAgentProfile(
-                user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                browser_type=BrowserType.CHROME,
-                platform=Platform.MACOS,
-                version="120.0.0.0",
-                market_share=0.15,
-            ),
-            UserAgentProfile(
-                user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                browser_type=BrowserType.CHROME,
-                platform=Platform.LINUX,
-                version="120.0.0.0",
-                market_share=0.05,
-            ),
-            # Firefox profiles
-            UserAgentProfile(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
-                browser_type=BrowserType.FIREFOX,
-                platform=Platform.WINDOWS,
-                version="121.0",
-                market_share=0.08,
-            ),
-            UserAgentProfile(
-                user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) Gecko/20100101 Firefox/121.0",
-                browser_type=BrowserType.FIREFOX,
-                platform=Platform.MACOS,
-                version="121.0",
-                market_share=0.03,
-            ),
-            # Safari profiles
-            UserAgentProfile(
-                user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
-                browser_type=BrowserType.SAFARI,
-                platform=Platform.MACOS,
-                version="17.2",
-                market_share=0.03,
-            ),
-            # Edge profiles
-            UserAgentProfile(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
-                browser_type=BrowserType.EDGE,
-                platform=Platform.WINDOWS,
-                version="120.0.0.0",
-                market_share=0.01,
-            ),
-        ]
+        self.profiles.extend(
+            [
+                # Chrome profiles
+                UserAgentProfile(
+                    user_agent=(
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/120.0.0.0 Safari/537.36"
+                    ),
+                    browser_type=BrowserType.CHROME,
+                    platform=Platform.WINDOWS,
+                    headers={
+                        "accept": (
+                            "text/html,application/xhtml+xml,application/xml;q=0.9,"
+                            "image/avif,image/webp,image/apng,*/*;q=0.8,"
+                            "application/signed-exchange;v=b3;q=0.7"
+                        ),
+                        "accept-language": "en-US,en;q=0.9",
+                        "sec-ch-ua": (
+                            '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"'
+                        ),
+                        "sec-ch-ua-mobile": "?0",
+                        "sec-ch-ua-platform": '"Windows"',
+                        "sec-fetch-dest": "document",
+                        "sec-fetch-mode": "navigate",
+                        "sec-fetch-site": "none",
+                        "sec-fetch-user": "?1",
+                        "upgrade-insecure-requests": "1",
+                    },
+                ),
+                UserAgentProfile(
+                    user_agent=(
+                        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/120.0.0.0 Safari/537.36"
+                    ),
+                    browser_type=BrowserType.CHROME,
+                    platform=Platform.MACOS,
+                    headers={
+                        "accept": (
+                            "text/html,application/xhtml+xml,application/xml;q=0.9,"
+                            "image/avif,image/webp,image/apng,*/*;q=0.8,"
+                            "application/signed-exchange;v=b3;q=0.7"
+                        ),
+                        "accept-language": "en-US,en;q=0.9",
+                        "sec-ch-ua": (
+                            '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"'
+                        ),
+                        "sec-ch-ua-mobile": "?0",
+                        "sec-ch-ua-platform": '"macOS"',
+                        "sec-fetch-dest": "document",
+                        "sec-fetch-mode": "navigate",
+                        "sec-fetch-site": "none",
+                        "sec-fetch-user": "?1",
+                        "upgrade-insecure-requests": "1",
+                    },
+                ),
+                UserAgentProfile(
+                    user_agent=(
+                        "Mozilla/5.0 (X11; Linux x86_64) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/120.0.0.0 Safari/537.36"
+                    ),
+                    browser_type=BrowserType.CHROME,
+                    platform=Platform.LINUX,
+                ),
+                # Firefox profiles
+                UserAgentProfile(
+                    user_agent=(
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) "
+                        "Gecko/20100101 Firefox/121.0"
+                    ),
+                    browser_type=BrowserType.FIREFOX,
+                    platform=Platform.WINDOWS,
+                ),
+                UserAgentProfile(
+                    user_agent=(
+                        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) "
+                        "Gecko/20100101 Firefox/121.0"
+                    ),
+                    browser_type=BrowserType.FIREFOX,
+                    platform=Platform.MACOS,
+                ),
+                # Safari profiles
+                UserAgentProfile(
+                    user_agent=(
+                        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                        "AppleWebKit/605.1.15 (KHTML, like Gecko) "
+                        "Version/17.2 Safari/605.1.15"
+                    ),
+                    browser_type=BrowserType.SAFARI,
+                    platform=Platform.MACOS,
+                ),
+                # Edge profiles
+                UserAgentProfile(
+                    user_agent=(
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0"
+                    ),
+                    browser_type=BrowserType.EDGE,
+                    platform=Platform.WINDOWS,
+                ),
+            ]
+        )
 
-        self.logger.debug(f"Loaded {len(profiles)} user-agent profiles")
-        return profiles
+        self.logger.debug(f"Loaded {len(self.profiles)} user-agent profiles")
+        return self.profiles
 
     def get_user_agent(self, force_rotation: bool = False) -> str:
         """
@@ -199,7 +250,7 @@ class HeaderRandomizer:
 
     def __init__(self, config: AntiDetectionConfig):
         self.config = config
-        self.logger = Logger(__name__)
+        self.logger = get_logger(__name__)
 
     def get_randomized_headers(
         self, base_headers: Optional[Dict[str, str]] = None
@@ -286,7 +337,7 @@ class TimingRandomizer:
 
     def __init__(self, config: AntiDetectionConfig):
         self.config = config
-        self.logger = Logger(__name__)
+        self.logger = get_logger(__name__)
 
     async def apply_delay(self, force_delay: bool = False) -> float:
         """
@@ -337,7 +388,7 @@ class FingerprintReducer:
 
     def __init__(self, config: AntiDetectionConfig):
         self.config = config
-        self.logger = Logger(__name__)
+        self.logger = get_logger(__name__)
 
     def get_browser_args(self) -> List[str]:
         """
@@ -421,7 +472,7 @@ class AntiDetectionManager:
 
     def __init__(self, config: Optional[AntiDetectionConfig] = None):
         self.config = config or AntiDetectionConfig()
-        self.logger = Logger(__name__)
+        self.logger = get_logger(__name__)
 
         # Initialize components
         self.user_agent_rotator = UserAgentRotator(self.config)

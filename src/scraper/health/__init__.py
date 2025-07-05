@@ -7,15 +7,14 @@ following T021 requirements.
 TDD Implementation: GREEN phase - comprehensive health monitoring system.
 """
 
-import asyncio
 import time
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from src.logger import Logger
+from src.logger import get_logger
 
-logger = Logger(__name__)
+logger = get_logger(__name__)
 
 
 class HealthStatus(Enum):
@@ -91,7 +90,7 @@ class SystemHealthChecker:
     def __init__(self, cpu_threshold: float = 80.0, memory_threshold: float = 80.0):
         self.cpu_threshold = cpu_threshold
         self.memory_threshold = memory_threshold
-        self.logger = Logger(__name__)
+        self.logger = get_logger(__name__)
 
     async def check_health(self) -> List[HealthMetric]:
         """Check system health metrics."""
@@ -178,7 +177,7 @@ class HealthMonitor:
 
     def __init__(self, cpu_threshold: float = 80.0, memory_threshold: float = 80.0):
         self.system_checker = SystemHealthChecker(cpu_threshold, memory_threshold)
-        self.logger = Logger(__name__)
+        self.logger = get_logger(__name__)
 
     async def get_health_report(self) -> HealthReport:
         """Get comprehensive health report."""
@@ -231,8 +230,8 @@ class HealthMonitor:
 # Export all health monitoring components
 __all__ = [
     "HealthStatus",
-    "HealthMetric",
-    "HealthReport",
-    "SystemHealthChecker",
     "HealthMonitor",
+    "SystemHealthChecker",
+    "HealthReport",
+    "HealthMetric",
 ]

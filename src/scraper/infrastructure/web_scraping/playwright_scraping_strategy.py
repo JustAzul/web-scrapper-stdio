@@ -5,13 +5,15 @@ Parte da refatoração T003 - Quebrar IntelligentFallbackScraper seguindo SRP
 
 from typing import Any, Dict, Optional
 
+import httpx
 from bs4 import BeautifulSoup
-from playwright.async_api import Page, Route, async_playwright
+from playwright.async_api import Browser, Page, Route, async_playwright
 
 from ...application.services.scraping_request import ScrapingRequest
+from .scraping_strategy import ScrapingStrategy
 
 
-class PlaywrightScrapingStrategy:
+class PlaywrightScrapingStrategy(ScrapingStrategy):
     """Estratégia de scraping usando Playwright seguindo SRP"""
 
     def __init__(self, config: Any) -> None:
@@ -19,6 +21,24 @@ class PlaywrightScrapingStrategy:
         self.timeout = config.playwright_timeout
         self.enable_resource_blocking = config.enable_resource_blocking
         self.blocked_resource_types = config.blocked_resource_types
+        self._playwright = None
+        self._browser: Optional[Browser] = None
+
+    async def initialize(self):
+        """Initializes the Playwright browser instance."""
+        if not self._browser:
+            self._playwright = await async_playwright().start()
+            self._browser = await self._playwright.chromium.launch(
+                headless=True,
+                args=["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"],
+            )
+
+    async def shutdown(self):
+        """Shuts down the Playwright browser instance."""
+        if self._browser:
+            await self._browser.close()
+        if self._playwright:
+            await self._playwright.stop()
 
     async def scrape_url(
         self, request: ScrapingRequest, headers: Optional[Dict[str, Any]] = None
@@ -33,14 +53,11 @@ class PlaywrightScrapingStrategy:
         Returns:
             Conteúdo HTML limpo
         """
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(
-                headless=True,
-                args=["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"],
-            )
+        if not self._browser:
+            raise Exception("Playwright browser is not initialized.")
 
             try:
-                context = await browser.new_context(extra_http_headers=headers)
+            context = await self._browser.new_context(extra_http_headers=headers)
                 page = await context.new_page()
 
                 if self.enable_resource_blocking:
@@ -52,16 +69,29 @@ class PlaywrightScrapingStrategy:
                     timeout=self.timeout * 1000,
                 )
 
-                if not response or response.status >= 400:
-                    raise Exception(
-                        f"HTTP {response.status if response else 'Unknown'}"
+                if response and response.status >= 400:
+                    # Cria uma request e response mock para o erro
+                    mock_request = httpx.Request("GET", request.url)
+                    mock_response = httpx.Response(
+                        status_code=response.status,
+                        request=mock_request,
+                        text=await response.text(),
                     )
+                    raise httpx.HTTPStatusError(
+                        f"HTTP error {response.status}",
+                        request=mock_request,
+                        response=mock_response,
+                    )
+
+                if not response:
+                    raise Exception("Playwright failed to get a response.")
 
                 content = await page.content()
                 return self._clean_html_content(content)
 
             finally:
-                await browser.close()
+            if 'context' in locals() and context:
+                await context.close()
 
     async def _setup_resource_blocking(self, page: Page) -> None:
         """Configura bloqueio de recursos para performance"""

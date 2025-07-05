@@ -11,13 +11,13 @@ from typing import Any, Optional, Tuple
 
 from bs4 import BeautifulSoup
 
-from src.logger import Logger
+from src.logger import get_logger
 from src.scraper.infrastructure.external.html_utils import (
     _extract_and_clean_html,
     _extract_markdown_and_text,
 )
 
-logger = Logger(__name__)
+logger = get_logger(__name__)
 
 
 class AsyncHTMLProcessor:

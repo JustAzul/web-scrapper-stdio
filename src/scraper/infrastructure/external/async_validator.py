@@ -7,11 +7,11 @@ Part of T013 - Async/Await Standardization.
 
 import ast
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
-from src.logger import Logger
+from src.logger import get_logger
 
-logger = Logger(__name__)
+logger = get_logger(__name__)
 
 
 class AsyncConsistencyValidator:
@@ -67,16 +67,19 @@ class AsyncConsistencyValidator:
                 for node in ast.walk(tree):
                     if isinstance(node, ast.AsyncFunctionDef):
                         sync_calls = self._find_sync_calls_in_function(node, content)
-                        for call in sync_calls:
-                            violations.append(
-                                {
-                                    "file": str(python_file),
-                                    "function": node.name,
-                                    "line": call["line"],
-                                    "violation": f"Sync I/O call '{call['call']}' in async function",
-                                    "suggestion": "Replace with async equivalent",
-                                }
-                            )
+                        if sync_calls:
+                            for call in sync_calls:
+                                violations.append(
+                                    {
+                                        "file": str(python_file),
+                                        "function": node.name,
+                                        "line": call["line"],
+                                        "violation": (
+                                            f"Sync I/O call '{call['call']}' in async function"
+                                        ),
+                                        "suggestion": "Replace with async equivalent",
+                                    }
+                                )
 
             except Exception as e:
                 logger.warning(f"Error analyzing file {python_file}: {e}")
@@ -118,7 +121,10 @@ class AsyncConsistencyValidator:
                             "violation": "Mixed async/sync functions in same module",
                             "async_functions": ", ".join(async_functions),
                             "sync_functions": ", ".join(sync_functions),
-                            "suggestion": "Consider separating async and sync code or converting to consistent pattern",
+                            "suggestion": (
+                                "Consider separating async and sync code"
+                                " or converting to consistent pattern"
+                            ),
                         }
                     )
 
@@ -144,28 +150,31 @@ class AsyncConsistencyValidator:
     ) -> List[Dict[str, str]]:
         """Find synchronous I/O calls within an async function."""
         sync_calls = []
-        lines = content.split("\n")
 
         for node in ast.walk(func_node):
             if isinstance(node, ast.Call):
-                call_str = self._get_call_string(node)
-                if any(pattern in call_str for pattern in self.sync_io_patterns):
-                    sync_calls.append({"call": call_str, "line": str(node.lineno)})
+                call_info = self._check_sync_call(node)
+                if call_info:
+                    sync_calls.append(call_info)
 
         return sync_calls
 
-    def _get_call_string(self, call_node: ast.Call) -> str:
-        """Extract string representation of a function call."""
+    def _check_sync_call(self, call_node: ast.Call) -> Optional[Dict[str, str]]:
+        """Check if a call is a synchronous I/O call."""
         try:
             if isinstance(call_node.func, ast.Attribute):
                 if isinstance(call_node.func.value, ast.Name):
-                    return f"{call_node.func.value.id}.{call_node.func.attr}"
+                    call_str = f"{call_node.func.value.id}.{call_node.func.attr}"
+                    if any(pattern in call_str for pattern in self.sync_io_patterns):
+                        return {"call": call_str, "line": str(call_node.lineno)}
             elif isinstance(call_node.func, ast.Name):
-                return call_node.func.id
+                call_str = call_node.func.id
+                if any(pattern in call_str for pattern in self.sync_io_patterns):
+                    return {"call": call_str, "line": str(call_node.lineno)}
         except Exception as e:
             # Log the error instead of silently passing
-            logger.warning(f"Failed to extract call string from AST node: {e}")
-        return ""
+            logger.warning(f"Failed to check sync call: {e}")
+        return None
 
     def validate_project(self) -> Dict[str, List[Dict[str, str]]]:
         """

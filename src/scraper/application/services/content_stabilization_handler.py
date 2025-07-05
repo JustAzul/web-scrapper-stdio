@@ -8,10 +8,10 @@ following the Single Responsibility Principle.
 from dataclasses import dataclass
 from typing import Optional
 
-from src.logger import Logger
+from src.logger import get_logger
 from src.scraper.application.services.scraping_request import ScrapingRequest
 
-logger = Logger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass

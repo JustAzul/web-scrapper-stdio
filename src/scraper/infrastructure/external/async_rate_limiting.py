@@ -1,15 +1,17 @@
+from __future__ import annotations
 import asyncio
 import time
 from typing import Dict, Optional
 from urllib.parse import urlparse
+from logging import Logger
 
-from src.config import DEFAULT_MIN_SECONDS_BETWEEN_REQUESTS
-from src.logger import Logger
+from src.logger import get_logger
+from src.settings import DEFAULT_MIN_SECONDS_BETWEEN_REQUESTS
 
 
 class AsyncRateLimiter:
     def __init__(self, logger: Optional[Logger] = None):
-        self.logger = logger or Logger(__name__)
+        self.logger = logger or get_logger(__name__)
         self._last_request_times: Dict[str, float] = {}
         self.min_seconds_between_requests = DEFAULT_MIN_SECONDS_BETWEEN_REQUESTS
 

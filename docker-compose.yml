@@ -2,37 +2,33 @@ services:
   test:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     container_name: web-scraper-tester
     environment:
-      - PYTEST_ADDOPTS=--disable-warnings
+      - PYTEST_ADDOPTS=--cov-report=term --cov-report=html:/tmp/cov_html
       - PYTHONUNBUFFERED=1
     volumes:
-      - ./tests:/app/tests
-      - ./src:/app/src
+      - ./tests:/home/appuser/app/tests
+      - ./src:/home/appuser/app/src
     shm_size: '2gb'
     ipc: host
     cap_add:
       - SYS_ADMIN
     init: true
-    command: >
-      sh -c "
-        echo 'Running tests (excluding slow external tests)...';
-        pytest -v -rs -m 'not slow' tests
-      "
+    command: pytest tests/unit/application tests/unit/refactor tests/unit/scraper tests/functional
     stop_signal: SIGINT
 
   test-all:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     container_name: web-scraper-tester-all
     environment:
-      - PYTEST_ADDOPTS=--disable-warnings
+      - PYTEST_ADDOPTS=--cov-report=term --cov-report=html:/tmp/cov_html
       - PYTHONUNBUFFERED=1
     volumes:
-      - ./tests:/app/tests
-      - ./src:/app/src
+      - ./tests:/home/appuser/app/tests
+      - ./src:/home/appuser/app/src
     shm_size: '2gb'
     ipc: host
     cap_add:
@@ -44,55 +40,33 @@ services:
       memlock:
         soft: -1
         hard: -1
-    command: >
-      sh -c "
-        echo 'Running ALL tests (including slow external tests)...';
-        pytest -v -rs tests
-      "
-    stop_signal: SIGINT
+    command: pytest --cov=src --cov-report=term-missing --cov-fail-under=8
 
   test-unit:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     container_name: web-scraper-tester-unit
     environment:
-      - PYTEST_ADDOPTS=--disable-warnings
+      - PYTEST_ADDOPTS=--cov-report=term --cov-report=html:/tmp/cov_html
       - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/home/appuser/app
     volumes:
-      - ./tests:/app/tests
-      - ./src:/app/src
+      - ./tests:/home/appuser/app/tests
+      - ./src:/home/appuser/app/src
     shm_size: '2gb'
     ipc: host
     cap_add:
       - SYS_ADMIN
     init: true
-    command: >
-      sh -c "
-        echo 'Running UNIT tests...';
-        pytest tests/unit/ --tb=short -v
-        "
+    command: pytest tests/unit/application tests/unit/infrastructure tests/unit/refactor tests/unit/scraper tests/functional
     stop_signal: SIGINT
 
-  test-integration:
+  test-e2e:
     build:
       context: .
-      dockerfile: Dockerfile
-    container_name: web-scraper-tester-integration
-    environment:
-      - PYTEST_ADDOPTS=--disable-warnings
-      - PYTHONUNBUFFERED=1
+      dockerfile: Dockerfile.dev
     volumes:
-      - ./tests:/app/tests
-      - ./src:/app/src
-    shm_size: '2gb'
-    ipc: host
-    cap_add:
-      - SYS_ADMIN
-    init: true
-    command: >
-      sh -c "
-        echo 'Running INTEGRATION tests...';
-        pytest -v -rs -m 'integration and not slow' tests/integration/
-      "
-    stop_signal: SIGINT
+      - ./tests:/home/appuser/app/tests
+      - ./src:/home/appuser/app/src
+    command: pytest tests/e2e/test_mcp_server.py

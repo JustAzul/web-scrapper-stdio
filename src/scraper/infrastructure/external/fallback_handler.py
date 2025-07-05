@@ -5,9 +5,9 @@ Parte da refatoração T002 - Quebrar ChunkedHTMLProcessor seguindo SRP
 
 from typing import Callable, TypeVar
 
-from src.logger import Logger
+from src.logger import get_logger
 
-logger = Logger(__name__)
+logger = get_logger(__name__)
 
 T = TypeVar("T")
 

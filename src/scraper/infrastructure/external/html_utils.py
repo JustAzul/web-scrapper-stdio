@@ -1,10 +1,12 @@
 # Standard lib imports
 from bs4 import BeautifulSoup
 from markdownify import markdownify as md
-from src.logger import Logger
+
+from src.logger import get_logger
+
 from .text_utils import normalize_text
 
-logger = Logger(__name__)
+logger = get_logger(__name__)
 
 
 def _extract_and_clean_html(html_content, elements_to_remove):

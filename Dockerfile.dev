@@ -1,0 +1,30 @@
+# Use the official Microsoft Playwright image as a base.
+# Using the version explicitly recommended by the Playwright error message.
+FROM mcr.microsoft.com/playwright/python:v1.53.0-jammy
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
+
+# First, install all dependencies as root to ensure they are in the global path
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Now, create a non-root user for security
+RUN useradd --create-home --shell /bin/bash appuser
+
+# Create, set ownership, and switch to the app directory
+WORKDIR /home/appuser/app
+RUN chown -R appuser:appuser /home/appuser/app
+
+# Switch to the non-root user
+USER appuser
+
+# Copy the application code into the container
+COPY . .
+
+# Expose the application port
+EXPOSE 8080
+
+# Run the application
+CMD ["python", "-m", "src.main"] 

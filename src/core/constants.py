@@ -9,10 +9,14 @@ with clear meanings, improving code readability and maintainability.
 # TIMEOUT CONSTANTS
 # =============================================================================
 
-MAX_TIMEOUT_SECONDS = 240
-DEFAULT_CONFIG_TIMEOUT = 30  # Default timeout for Playwright operations
+# Core timeout values
+DEFAULT_TIMEOUT_SECONDS = 30  # Default timeout for page loads and navigation
+MAX_TIMEOUT_SECONDS = 240     # Maximum allowed timeout
 DEFAULT_FALLBACK_TIMEOUT = 15  # Default timeout for HTTPX fallback
 CIRCUIT_BREAKER_RECOVERY_TIMEOUT = 60  # Default recovery timeout for circuit breaker
+
+# Playwright specific timeouts
+DEFAULT_CONFIG_TIMEOUT = DEFAULT_TIMEOUT_SECONDS  # For backward compatibility
 
 DEFAULT_CLICK_TIMEOUT_MS = 3000
 MILLISECONDS_PER_SECOND = 1000
@@ -185,11 +189,12 @@ CONTENT_AREA_PATTERNS = [
 # VALIDATION CONSTANTS
 # =============================================================================
 
-# Maximum timeout for MCP validation (in seconds) - replaces magic number 30
-MAX_TIMEOUT_VALIDATION = 30
+# MCP validation limits - must be greater than default values to allow them
+MAX_TIMEOUT_VALIDATION = 120  # Must be > DEFAULT_TIMEOUT_SECONDS (30)
+MAX_GRACE_PERIOD_VALIDATION = 120  # Must be > DEFAULT_GRACE_PERIOD_SECONDS (2.0)
 
-# Maximum grace period for MCP validation (in seconds) - replaces magic number 120
-MAX_GRACE_PERIOD_VALIDATION = 120
+# Grace period constants
+DEFAULT_GRACE_PERIOD_SECONDS = 2.0  # Default grace period for JS rendering
 
 # Threshold for considering content "large" (in KB)
 LARGE_CONTENT_THRESHOLD_KB = 500

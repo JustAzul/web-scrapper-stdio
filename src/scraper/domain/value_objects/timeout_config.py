@@ -8,8 +8,8 @@ This class is responsible only for timeout-related configuration.
 from dataclasses import dataclass
 from typing import Optional
 
-from src.config import DEFAULT_TIMEOUT_SECONDS
 from src.scraper.domain.value_objects.value_objects import TimeoutValue
+from src.settings import DEFAULT_TIMEOUT_SECONDS
 
 
 @dataclass(frozen=True)
