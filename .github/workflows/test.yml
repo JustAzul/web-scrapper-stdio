@@ -1,0 +1,39 @@
+name: Test
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  test_mcp:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Run MCP server tests (Docker Compose)
+        run: docker compose up --build --abort-on-container-exit test_mcp
+      - name: Upload MCP test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-test-results
+          path: .
+
+  test_scrapper:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Run scrapper tests (Docker Compose)
+        run: docker compose up --build --abort-on-container-exit test_scrapper
+      - name: Upload scrapper test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scrapper-test-results
+          path: .
+          
+          filename: gistfile1.txt
+          label: tests
+          message: ${{ env.TEST_STATUS }}
+          color: ${{ env.COLOR }} 
