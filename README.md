@@ -8,6 +8,8 @@
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![PEP8](https://img.shields.io/badge/code%20style-pep8-orange)
 ![GHCR](https://img.shields.io/badge/ghcr.io-JustAzul%2Fweb--scrapper--stdio-blue?logo=github)
+![Patchright](https://img.shields.io/badge/browser-Patchright-green?logo=googlechrome)
+![Docker](https://img.shields.io/badge/docker-multi--arch-blue?logo=docker)
 
 **A Python-based MCP server for robust, headless web scraping—extracts main text content from web pages and outputs Markdown, text, or HTML for seamless AI and automation integration.**
 
