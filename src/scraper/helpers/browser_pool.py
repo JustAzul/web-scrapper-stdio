@@ -8,10 +8,10 @@ a fresh BrowserContext (isolated cookies/storage) from the least-loaded browser.
 import asyncio
 
 from playwright.async_api import async_playwright, Playwright, Browser, BrowserContext, Page
-from playwright_stealth import stealth_async
 
 from src.config import BROWSER_POOL_SIZE
 from src.logger import Logger
+from src.scraper.helpers.browser import apply_stealth
 
 logger = Logger(__name__)
 
@@ -50,6 +50,7 @@ class BrowserPool:
         self._slots: list[_BrowserSlot] = []
         self._started = False
         self._acquire_semaphore: asyncio.Semaphore | None = None
+        self._pick_lock: asyncio.Lock | None = None
 
     @property
     def is_started(self) -> bool:
@@ -70,6 +71,7 @@ class BrowserPool:
 
         # Semaphore prevents unbounded context creation
         self._acquire_semaphore = asyncio.Semaphore(self._pool_size * 10)
+        self._pick_lock = asyncio.Lock()
         self._started = True
         logger.info("Browser pool ready")
 
@@ -108,30 +110,23 @@ class BrowserPool:
 
         await self._acquire_semaphore.acquire()
 
-        index, slot = self._pick_slot()
+        async with self._pick_lock:
+            index, slot = self._pick_slot()
 
-        async with slot.lock:
-            await self._ensure_browser_healthy(slot, index)
+            async with slot.lock:
+                await self._ensure_browser_healthy(slot, index)
 
-            context = await slot.browser.new_context(
-                user_agent=user_agent,
-                viewport=viewport,
-                java_script_enabled=True,
-                locale=accept_language.split(",")[0],
-                extra_http_headers={"Accept-Language": accept_language},
-            )
-            page = await context.new_page()
+                context = await slot.browser.new_context(
+                    user_agent=user_agent,
+                    viewport=viewport,
+                    java_script_enabled=True,
+                    locale=accept_language.split(",")[0],
+                    extra_http_headers={"Accept-Language": accept_language},
+                )
+                page = await context.new_page()
+                await apply_stealth(page, timeout_seconds)
 
-            await stealth_async(page)
-            await page.add_init_script(
-                "Object.defineProperty(navigator, 'webdriver', {get: () => undefined});"
-                "Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en']});"
-                "Object.defineProperty(navigator, 'plugins', {get: () => [1,2,3,4,5]});"
-            )
-            page.set_default_navigation_timeout(timeout_seconds * 1000)
-            page.set_default_timeout(timeout_seconds * 1000)
-
-            slot.active_contexts += 1
+                slot.active_contexts += 1
 
         return context, page
 

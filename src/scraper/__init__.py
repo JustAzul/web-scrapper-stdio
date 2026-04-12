@@ -4,6 +4,7 @@ from src.config import (
     DEFAULT_TIMEOUT_SECONDS,
     DEFAULT_MIN_CONTENT_LENGTH,
     DEFAULT_MIN_CONTENT_LENGTH_SEARCH_APP,
+    DEFAULT_GRACE_PERIOD_SECONDS,
     BROWSER_POOL_ENABLED)
 from src.logger import Logger
 from .helpers.rate_limiting import get_domain_from_url, apply_rate_limiting
@@ -58,7 +59,7 @@ def extract_clean_html(html_content, elements_to_remove, url):
 async def extract_text_from_url(url: str,
                                 custom_elements_to_remove: list | None = None,
                                 custom_timeout: int | None = None,
-                                grace_period_seconds: float = 2.0,
+                                grace_period_seconds: float = DEFAULT_GRACE_PERIOD_SECONDS,
                                 max_length: int | None = None,
                                 user_agent: str | None = None,
                                 wait_for_network_idle: bool = True,

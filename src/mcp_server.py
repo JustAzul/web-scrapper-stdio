@@ -16,7 +16,6 @@ from src.config import (
     MCP_HTTP_PORT,
 )
 from src.output_format_handler import OutputFormat
-from src.utils import filter_none_values
 
 from src.scraper import extract_text_from_url
 
@@ -93,7 +92,7 @@ async def mcp_extract_text_map(url: str, *args, **kwargs) -> dict:
 async def lifespan(app: FastMCP):
     """Manage browser pool lifecycle."""
     if BROWSER_POOL_ENABLED:
-        from src.scraper.helpers.browser_pool import get_pool, shutdown_pool
+        from src.scraper.helpers.browser_pool import get_pool
         logger.info("Pre-warming browser pool...")
         await get_pool()
         logger.info("Browser pool ready")
@@ -130,48 +129,34 @@ async def scrape_web(
     custom_elements_to_remove: list[str] | None = None,
 ) -> str:
     """Scrape a webpage and extract its main content."""
-    # Validate and parse arguments through ScrapeArgs
-    filtered = filter_none_values({
-        "url": url,
-        "max_length": max_length,
-        "grace_period_seconds": grace_period_seconds,
-        "timeout_seconds": timeout_seconds,
-        "user_agent": user_agent,
-        "wait_for_network_idle": wait_for_network_idle,
-        "output_format": output_format,
-        "click_selector": click_selector,
-        "custom_elements_to_remove": custom_elements_to_remove,
-    })
-
     try:
-        args = ScrapeArgs(**filtered)
-    except ValueError as e:
-        logger.error(f"Invalid parameters: {e}")
-        raise McpError(ErrorData(code=INTERNAL_ERROR, message=str(e)))
+        fmt = OutputFormat(output_format)
+    except ValueError:
+        fmt = OutputFormat.MARKDOWN
 
-    logger.info(f"Scraping URL: {args.url}")
+    logger.info(f"Scraping URL: {url}")
     result = await extract_text_from_url(
-        args.url,
-        custom_timeout=args.timeout_seconds,
-        custom_elements_to_remove=args.custom_elements_to_remove,
-        grace_period_seconds=args.grace_period_seconds,
-        max_length=args.max_length,
-        user_agent=args.user_agent,
-        wait_for_network_idle=args.wait_for_network_idle,
-        output_format=args.output_format,
-        click_selector=args.click_selector,
+        url,
+        custom_timeout=timeout_seconds,
+        custom_elements_to_remove=custom_elements_to_remove,
+        grace_period_seconds=grace_period_seconds,
+        max_length=max_length,
+        user_agent=user_agent,
+        wait_for_network_idle=wait_for_network_idle,
+        output_format=fmt,
+        click_selector=click_selector,
     )
 
     if result.get("error"):
-        logger.error(f"Failed to scrape {args.url}: {result['error']}")
+        logger.error(f"Failed to scrape {url}: {result['error']}")
         raise McpError(ErrorData(
             code=INTERNAL_ERROR,
-            message=f"Failed to scrape {args.url}: {result['error']}"
+            message=f"Failed to scrape {url}: {result['error']}"
         ))
 
     content = result.get("content")
-    logger.info(f"Successfully scraped {args.url}, returning {len(content) if content else 0} characters")
-    return f"Scraped content from {result.get('final_url', args.url)}:\n\n{content}"
+    logger.info(f"Successfully scraped {url}, returning {len(content) if content else 0} characters")
+    return f"Scraped content from {result.get('final_url', url)}:\n\n{content}"
 
 
 @mcp.prompt(

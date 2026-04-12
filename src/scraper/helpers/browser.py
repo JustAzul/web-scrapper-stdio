@@ -17,8 +17,8 @@ VIEWPORTS = [
 ]
 LANGUAGES = ["en-US,en;q=0.9", "en-GB,en;q=0.8", "en;q=0.7"]
 
-# NOTE: Browser pooling/singleton is only safe in long-lived, single-process, non-test environments.
-# For test and Docker environments, always launch a new browser per call for reliability.
+# NOTE: _setup_browser_context is the per-request fallback path used when BROWSER_POOL_ENABLED=false.
+# Tests use this path for isolation. See browser_pool.py for the persistent pool implementation.
 
 
 async def apply_stealth(page, timeout_seconds):
