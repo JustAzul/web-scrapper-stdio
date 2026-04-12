@@ -1,7 +1,7 @@
 import asyncio
 
 from src.logger import Logger
-from playwright.async_api import TimeoutError as PlaywrightTimeoutError
+from patchright.async_api import TimeoutError as PlaywrightTimeoutError
 
 logger = Logger(__name__)
 

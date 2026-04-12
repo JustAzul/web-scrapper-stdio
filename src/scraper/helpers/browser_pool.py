@@ -7,7 +7,7 @@ a fresh BrowserContext (isolated cookies/storage) from the least-loaded browser.
 
 import asyncio
 
-from playwright.async_api import async_playwright, Playwright, Browser, BrowserContext, Page
+from patchright.async_api import async_playwright, Playwright, Browser, BrowserContext, Page
 
 from src.config import BROWSER_POOL_SIZE
 from src.logger import Logger

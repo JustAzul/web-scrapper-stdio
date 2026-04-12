@@ -1,23 +1,13 @@
-from playwright.async_api import TimeoutError as PlaywrightTimeoutError, Error as PlaywrightError
+from patchright.async_api import TimeoutError as PlaywrightTimeoutError, Error as PlaywrightError
 import re
 from src.logger import Logger
+from src.scraper.helpers.cloudflare import detect_cf_challenge_html
 
 logger = Logger(__name__)
 
 
 def _detect_cloudflare_challenge(html_content):
-    cloudflare_patterns = [
-        r'Attention Required! \| Cloudflare',
-        r'cf-browser-verification',
-        r'Checking your browser before accessing',
-        r'Please enable JavaScript and Cookies to continue',
-        r'Cloudflare Ray ID',
-        r'cloudflare.com/speedtest',
-        r'Why do I have to complete a CAPTCHA?'
-    ]
-
-    return any(re.search(pattern, html_content, re.IGNORECASE)
-               for pattern in cloudflare_patterns)
+    return detect_cf_challenge_html(html_content)
 
 
 async def _navigate_and_handle_errors(page, url, timeout_seconds):

@@ -284,6 +284,12 @@ You can override most configuration options using environment variables:
 - `MCP_HTTP_PORT`: HTTP server port when using streamable-http transport (default: 8080)
 - `MCP_HTTP_HOST`: HTTP server bind address (default: `0.0.0.0`)
 
+### Cloudflare Bypass
+- `CAPTCHA_API_KEY`: API key for captcha solver service. When set, Cloudflare Turnstile challenges are solved automatically. When empty (default), CF-protected pages return an error.
+- `CAPTCHA_PROVIDER`: Captcha solver provider — `2captcha`, `capsolver`, or `capmonster` (default: `2captcha`)
+- `CAPTCHA_BASE_URL`: Custom solver API endpoint (default: uses provider's official URL)
+- `CAPTCHA_TIMEOUT`: Timeout in seconds for captcha solving (default: 120)
+
 ### Test Settings
 - `DEFAULT_TEST_REQUEST_TIMEOUT`: Timeout for test requests (default: 10)
 - `DEFAULT_TEST_NO_DELAY_THRESHOLD`: Threshold for skipping artificial delays in tests (default: 0.5)
@@ -294,11 +300,10 @@ You can override most configuration options using environment variables:
 
 - The scrapper detects and returns errors for navigation failures, timeouts, HTTP errors (including 404), and Cloudflare anti-bot challenges.
 - Rate limiting is enforced per domain (default: 2 seconds between requests).
-- Cloudflare and similar anti-bot screens are detected and reported as errors.
+- **Cloudflare bypass**: Uses [Patchright](https://github.com/nicemicro/patchright) (CDP-level anti-detection) for passive evasion. Most CF-protected sites are scraped without triggering a challenge. When a Turnstile challenge is triggered and `CAPTCHA_API_KEY` is set, it's solved automatically via third-party API.
 - **Limitations:**
   - No REST API or CLI tool (MCP stdio/JSON-RPC only)
   - No support for non-HTML content (PDF, images, etc.)
-  - May not bypass advanced anti-bot protections
   - No authentication or session management for protected pages
   - Not intended for scraping at scale or violating site terms
 

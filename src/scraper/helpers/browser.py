@@ -1,4 +1,4 @@
-from playwright_stealth import stealth_async
+# Patchright provides CDP-level anti-detection; no need for playwright-stealth.
 
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -23,7 +23,6 @@ LANGUAGES = ["en-US,en;q=0.9", "en-GB,en;q=0.8", "en;q=0.7"]
 
 async def apply_stealth(page, timeout_seconds):
     """Apply stealth patches and timeout settings to a page."""
-    await stealth_async(page)
     await page.add_init_script(
         "Object.defineProperty(navigator, 'webdriver', {get: () => undefined});"
         "Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en']});"

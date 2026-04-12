@@ -1,11 +1,15 @@
 import random
-from playwright.async_api import async_playwright
+from patchright.async_api import async_playwright
 from src.config import (
     DEFAULT_TIMEOUT_SECONDS,
     DEFAULT_MIN_CONTENT_LENGTH,
     DEFAULT_MIN_CONTENT_LENGTH_SEARCH_APP,
     DEFAULT_GRACE_PERIOD_SECONDS,
-    BROWSER_POOL_ENABLED)
+    BROWSER_POOL_ENABLED,
+    CAPTCHA_API_KEY,
+    CAPTCHA_PROVIDER,
+    CAPTCHA_BASE_URL,
+    CAPTCHA_TIMEOUT)
 from src.logger import Logger
 from .helpers.rate_limiting import get_domain_from_url, apply_rate_limiting
 from .helpers.browser import _setup_browser_context, USER_AGENTS, VIEWPORTS, LANGUAGES
@@ -19,6 +23,8 @@ from src.output_format_handler import (
     to_text,
 )
 from .helpers.errors import _navigate_and_handle_errors, _handle_cloudflare_block
+from .helpers.cloudflare import detect_cf_challenge_live, setup_turnstile_interceptor, solve_cf_challenge
+from .helpers.captcha_solver import CaptchaSolver, PROVIDER_URLS
 import asyncio
 
 logger = Logger(__name__)
@@ -117,12 +123,39 @@ async def _scrape_page(page, url, timeout_seconds, grace_period_seconds,
                        wait_for_network_idle, click_selector,
                        custom_elements_to_remove, max_length, output_format):
     """Core scraping logic shared by both pool and fresh-browser paths."""
+    # Register Turnstile interceptor before navigation (only when API key is set)
+    if CAPTCHA_API_KEY:
+        await setup_turnstile_interceptor(page)
+
     await apply_rate_limiting(url)
     logger.debug(f"Navigating to URL: {url}")
     response, nav_error = await _navigate_and_handle_errors(page, url, timeout_seconds)
 
     if nav_error:
         return {"title": None, "final_url": url, "content": None, "error": nav_error}
+
+    # Check for Cloudflare challenge on the live page
+    challenge = await detect_cf_challenge_live(page)
+    if challenge:
+        if not CAPTCHA_API_KEY:
+            return {
+                "title": None, "final_url": page.url, "content": None,
+                "error": "[ERROR] Cloudflare challenge detected. Set CAPTCHA_API_KEY to enable automatic bypass.",
+            }
+        logger.info(f"Cloudflare challenge detected ({challenge}), attempting bypass...")
+        solver = CaptchaSolver(
+            provider=CAPTCHA_PROVIDER,
+            api_key=CAPTCHA_API_KEY,
+            base_url=CAPTCHA_BASE_URL or PROVIDER_URLS.get(CAPTCHA_PROVIDER, PROVIDER_URLS["2captcha"]),
+            timeout_s=CAPTCHA_TIMEOUT,
+        )
+        success, err = await solve_cf_challenge(page, solver, page.url)
+        if not success:
+            return {
+                "title": None, "final_url": page.url, "content": None,
+                "error": f"[ERROR] Cloudflare bypass failed: {err}",
+            }
+        logger.info(f"Cloudflare challenge solved for {page.url}")
 
     logger.debug(f"Waiting for content to stabilize on {page.url}")
     domain = get_domain_from_url(page.url)
@@ -247,7 +280,7 @@ async def _scrape_with_fresh_browser(url, ua, viewport, accept_language, timeout
                         pass
 
     except ImportError:
-        logger.warning("Playwright is not installed. Please run 'pip install playwright && playwright install'")
+        logger.warning("Patchright is not installed. Please run 'pip install patchright && patchright install'")
         return {"title": None, "final_url": url, "content": None,
                 "error": "[ERROR] Playwright installation missing."}
 

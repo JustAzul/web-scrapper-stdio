@@ -17,7 +17,7 @@ import time
 # Add project root to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from playwright.async_api import async_playwright
+from patchright.async_api import async_playwright
 from src.scraper import extract_text_from_url
 from src.scraper.helpers.browser import _setup_browser_context, USER_AGENTS, VIEWPORTS, LANGUAGES
 from src.output_format_handler import OutputFormat
