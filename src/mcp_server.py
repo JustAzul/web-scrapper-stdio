@@ -1,16 +1,20 @@
-from mcp.server import Server
-from mcp.server.stdio import stdio_server
-from mcp.types import (
-    ErrorData, GetPromptResult, Prompt, PromptArgument,
-    PromptMessage, TextContent, Tool,
-    INVALID_PARAMS, INTERNAL_ERROR
-)
-from mcp.shared.exceptions import McpError
+from contextlib import asynccontextmanager
 
-import asyncio
+from mcp.server.fastmcp import FastMCP
+from mcp.types import TextContent
+from mcp.shared.exceptions import McpError
+from mcp.types import ErrorData, INTERNAL_ERROR
+
 from pydantic import BaseModel, Field
 from src.logger import Logger
-from src.config import DEFAULT_TIMEOUT_SECONDS
+from src.config import (
+    DEFAULT_TIMEOUT_SECONDS,
+    DEFAULT_GRACE_PERIOD_SECONDS,
+    BROWSER_POOL_ENABLED,
+    MCP_TRANSPORT,
+    MCP_HTTP_HOST,
+    MCP_HTTP_PORT,
+)
 from src.output_format_handler import OutputFormat
 from src.utils import filter_none_values
 
@@ -30,9 +34,9 @@ class ScrapeArgs(BaseModel):
         lt=1000000,
     )
     grace_period_seconds: float = Field(
-        default=2.0,
-        description="Short grace period to allow JS to finish rendering (in seconds)",
-        gt=0,
+        default=DEFAULT_GRACE_PERIOD_SECONDS,
+        description="Short grace period to allow JS to finish rendering (in seconds). Set to 0 to skip.",
+        ge=0,
         lt=30,
     )
     timeout_seconds: int = Field(
@@ -85,159 +89,121 @@ async def mcp_extract_text_map(url: str, *args, **kwargs) -> dict:
     }
 
 
-async def serve(custom_user_agent: str | None = None):
-    logger.info("Starting MCP web scraper server (stdio mode)")
-    server = Server("mcp-web-scraper")
+@asynccontextmanager
+async def lifespan(app: FastMCP):
+    """Manage browser pool lifecycle."""
+    if BROWSER_POOL_ENABLED:
+        from src.scraper.helpers.browser_pool import get_pool, shutdown_pool
+        logger.info("Pre-warming browser pool...")
+        await get_pool()
+        logger.info("Browser pool ready")
+    try:
+        yield {}
+    finally:
+        if BROWSER_POOL_ENABLED:
+            from src.scraper.helpers.browser_pool import shutdown_pool
+            logger.info("Shutting down browser pool...")
+            await shutdown_pool()
 
-    @server.list_tools()
-    async def list_tools() -> list[Tool]:
-        logger.info("Listing available tools")
-        return [
-            Tool(
-                name="scrape_web",
-                description="Scrapes a webpage and extracts its main content",
-                inputSchema=ScrapeArgs.model_json_schema(),
-            )
-        ]
 
-    @server.list_prompts()
-    async def list_prompts() -> list[Prompt]:
-        logger.info("Listing available prompts")
-        return [
-            Prompt(
-                name="scrape",
-                description="Scrape a webpage and extract its main content",
-                arguments=[
-                    PromptArgument(
-                        name="url",
-                        description="URL to scrape",
-                        required=True,
-                    ),
-                    PromptArgument(
-                        name="output_format",
-                        description="Desired output format: markdown, text, or html",
-                        required=False,
-                    ),
-                ],
-            )
-        ]
+mcp = FastMCP(
+    "mcp-web-scraper",
+    host=MCP_HTTP_HOST,
+    port=MCP_HTTP_PORT,
+    lifespan=lifespan,
+)
 
-    @server.call_tool()
-    async def call_tool(name, arguments: dict) -> list[TextContent]:
-        logger.info(f"Call to tool '{name}' with arguments: {arguments}")
-        if name != "scrape_web":
-            raise McpError(ErrorData(code=INVALID_PARAMS,
-                           message=f"Unknown tool: {name}"))
 
-        # Create a filtered copy of arguments without mutating the original
-        filtered_arguments = filter_none_values(arguments)
+@mcp.tool(
+    name="scrape_web",
+    description="Scrapes a webpage and extracts its main content",
+)
+async def scrape_web(
+    url: str,
+    max_length: int | None = None,
+    grace_period_seconds: float = DEFAULT_GRACE_PERIOD_SECONDS,
+    timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
+    user_agent: str | None = None,
+    wait_for_network_idle: bool = True,
+    output_format: str = "markdown",
+    click_selector: str | None = None,
+    custom_elements_to_remove: list[str] | None = None,
+) -> str:
+    """Scrape a webpage and extract its main content."""
+    # Validate and parse arguments through ScrapeArgs
+    filtered = filter_none_values({
+        "url": url,
+        "max_length": max_length,
+        "grace_period_seconds": grace_period_seconds,
+        "timeout_seconds": timeout_seconds,
+        "user_agent": user_agent,
+        "wait_for_network_idle": wait_for_network_idle,
+        "output_format": output_format,
+        "click_selector": click_selector,
+        "custom_elements_to_remove": custom_elements_to_remove,
+    })
 
-        try:
-            args = ScrapeArgs(**filtered_arguments)
-        except ValueError as e:
-            logger.error(f"Invalid parameters: {e}")
-            raise McpError(ErrorData(code=INVALID_PARAMS, message=str(e)))
+    try:
+        args = ScrapeArgs(**filtered)
+    except ValueError as e:
+        logger.error(f"Invalid parameters: {e}")
+        raise McpError(ErrorData(code=INTERNAL_ERROR, message=str(e)))
 
-        url = args.url
-        if not url:
-            logger.error("URL is required")
-            raise McpError(ErrorData(code=INVALID_PARAMS,
-                           message="URL is required"))
+    logger.info(f"Scraping URL: {args.url}")
+    result = await extract_text_from_url(
+        args.url,
+        custom_timeout=args.timeout_seconds,
+        custom_elements_to_remove=args.custom_elements_to_remove,
+        grace_period_seconds=args.grace_period_seconds,
+        max_length=args.max_length,
+        user_agent=args.user_agent,
+        wait_for_network_idle=args.wait_for_network_idle,
+        output_format=args.output_format,
+        click_selector=args.click_selector,
+    )
 
-        # Call our existing scraper function
-        logger.info(f"Scraping URL: {url}")
-        result = await extract_text_from_url(
-            url,
-            custom_timeout=args.timeout_seconds,
-            custom_elements_to_remove=args.custom_elements_to_remove,
-            grace_period_seconds=args.grace_period_seconds,
-            max_length=args.max_length,
-            user_agent=args.user_agent,
-            wait_for_network_idle=args.wait_for_network_idle,
-            output_format=args.output_format,
-            click_selector=args.click_selector,
-        )
+    if result.get("error"):
+        logger.error(f"Failed to scrape {args.url}: {result['error']}")
+        raise McpError(ErrorData(
+            code=INTERNAL_ERROR,
+            message=f"Failed to scrape {args.url}: {result['error']}"
+        ))
 
-        if result.get("error"):
-            logger.error(
-                f"Failed to scrape {url}: {result['error']}")
-            raise McpError(ErrorData(
-                code=INTERNAL_ERROR,
-                message=f"Failed to scrape {url}: {result['error']}"
-            ))
+    content = result.get("content")
+    logger.info(f"Successfully scraped {args.url}, returning {len(content) if content else 0} characters")
+    return f"Scraped content from {result.get('final_url', args.url)}:\n\n{content}"
 
-        content = result.get("content")
 
-        logger.info(
-            f"Successfully scraped {url}, returning {len(content) if content else 0} characters")
-        return [TextContent(
-            type="text",
-            text=f"Scraped content from {result.get('final_url', url)}:\n\n{content}"
-        )]
+@mcp.prompt(
+    name="scrape",
+    description="Scrape a webpage and extract its main content",
+)
+async def scrape_prompt(url: str, output_format: str = "markdown") -> str:
+    """Scrape a webpage for use as prompt context."""
+    try:
+        fmt = OutputFormat(output_format)
+    except ValueError:
+        logger.error(f"Invalid output_format: {output_format}, defaulting to MARKDOWN")
+        fmt = OutputFormat.MARKDOWN
 
-    @server.get_prompt()
-    async def get_prompt(name: str, arguments: dict | None) -> GetPromptResult:
-        logger.info(f"Get prompt '{name}' with arguments: {arguments}")
-        if name != "scrape":
-            raise McpError(ErrorData(code=INVALID_PARAMS,
-                           message=f"Unknown prompt: {name}"))
+    logger.info(f"Scraping URL for prompt: {url}")
+    result = await extract_text_from_url(url, output_format=fmt)
 
-        if not arguments or "url" not in arguments:
-            logger.error("URL is required for scrape prompt")
-            raise McpError(ErrorData(code=INVALID_PARAMS,
-                           message="URL is required"))
+    if result.get("error"):
+        logger.error(f"Failed to scrape {url} for prompt: {result['error']}")
+        return f"Failed to scrape content from {url}: {result['error']}"
 
-        url = arguments["url"]
-        logger.info(f"Scraping URL for prompt: {url}")
-        output_format = arguments.get("output_format", OutputFormat.MARKDOWN)
-        if isinstance(output_format, str):
-            try:
-                output_format = OutputFormat(output_format)
-            except ValueError:
-                logger.error(
-                    f"Invalid output_format: {output_format}, defaulting to MARKDOWN")
-                output_format = OutputFormat.MARKDOWN
-        result = await extract_text_from_url(url, output_format=output_format)
+    content = result.get("content")
+    logger.info(f"Successfully scraped {url} for prompt, returning {len(content) if content else 0} characters")
+    return content
 
-        if result.get("error"):
-            logger.error(
-                f"Failed to scrape {url} for prompt: {result['error']}")
-            return GetPromptResult(
-                description=f"Failed to scrape {url}",
-                messages=[
-                    PromptMessage(
-                        role="user",
-                        content=TextContent(
-                            type="text",
-                            text=f"Failed to scrape content from {url}: {result['error']}"
-                        ),
-                    )
-                ],
-            )
 
-        content = result.get("content")
+def serve():
+    """Run the MCP server with the configured transport."""
+    transport = MCP_TRANSPORT.lower()
+    logger.info(f"Starting MCP web scraper server (transport={transport})")
+    mcp.run(transport=transport)
 
-        logger.info(
-            f"Successfully scraped {url} for prompt, returning {len(content) if content else 0} characters")
-        return GetPromptResult(
-            description=f"Scraped content from {result.get('final_url', url)}",
-            messages=[
-                PromptMessage(
-                    role="user",
-                    content=TextContent(
-                        type="text",
-                        text=content
-                    )
-                )
-            ],
-        )
-
-    options = server.create_initialization_options()
-    logger.info('About to enter stdio_server context')
-    async with stdio_server() as (read_stream, write_stream):
-        logger.info("Starting MCP server with stdio communication")
-        await server.run(read_stream, write_stream, options, raise_exceptions=True)
-        logger.info("server.run() completed")
 
 if __name__ == "__main__":
-    asyncio.run(serve())
+    serve()

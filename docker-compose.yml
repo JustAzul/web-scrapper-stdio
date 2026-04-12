@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   test:
     build:
@@ -9,6 +7,7 @@ services:
     environment:
       - PYTEST_ADDOPTS=--disable-warnings
       - PYTHONUNBUFFERED=1
+      - BROWSER_POOL_ENABLED=false
     volumes:
       - ./tests:/app/tests
       - ./src:/app/src
@@ -28,6 +27,7 @@ services:
     environment:
       - PYTEST_ADDOPTS=--disable-warnings
       - PYTHONUNBUFFERED=1
+      - BROWSER_POOL_ENABLED=false
     volumes:
       - ./tests:/app/tests
       - ./src:/app/src
@@ -47,6 +47,7 @@ services:
     environment:
       - PYTEST_ADDOPTS=--disable-warnings
       - PYTHONUNBUFFERED=1
+      - BROWSER_POOL_ENABLED=false
     volumes:
       - ./tests:/app/tests
       - ./src:/app/src
@@ -57,3 +58,36 @@ services:
         echo 'Running only scraper tests...';
         pytest -v -rs tests/test_scraper.py
       "
+
+  benchmark:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: web-scraper-benchmark
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./benchmarks:/app/benchmarks
+      - ./src:/app/src
+    shm_size: '2gb'
+    command: python benchmarks/bench_baseline.py
+
+  scraper-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: web-scraper-service
+    profiles:
+      - service
+    environment:
+      - MCP_TRANSPORT=streamable-http
+      - MCP_HTTP_PORT=8080
+      - MCP_HTTP_HOST=0.0.0.0
+      - BROWSER_POOL_SIZE=3
+      - BROWSER_POOL_ENABLED=true
+      - DEFAULT_GRACE_PERIOD_SECONDS=0.5
+      - PYTHONUNBUFFERED=1
+    ports:
+      - "8080:8080"
+    shm_size: '3gb'
+    restart: unless-stopped

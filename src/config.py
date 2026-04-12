@@ -32,3 +32,17 @@ DEFAULT_TEST_NO_DELAY_THRESHOLD = _get_env_float(
 
 # Debug logging toggle
 DEBUG_LOGS_ENABLED = os.getenv("DEBUG_LOGS_ENABLED", "false").lower() == "true"
+
+# Grace period: time to wait for JS rendering after navigation (in seconds)
+DEFAULT_GRACE_PERIOD_SECONDS = _get_env_float(
+    "DEFAULT_GRACE_PERIOD_SECONDS", 0.5)
+
+# Browser pool settings
+BROWSER_POOL_ENABLED = os.getenv(
+    "BROWSER_POOL_ENABLED", "true").lower() == "true"
+BROWSER_POOL_SIZE = _get_env_int("BROWSER_POOL_SIZE", 2)
+
+# Transport settings
+MCP_TRANSPORT = os.getenv("MCP_TRANSPORT", "stdio")
+MCP_HTTP_PORT = _get_env_int("MCP_HTTP_PORT", 8080)
+MCP_HTTP_HOST = os.getenv("MCP_HTTP_HOST", "0.0.0.0")

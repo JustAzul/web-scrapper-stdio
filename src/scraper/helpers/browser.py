@@ -21,6 +21,18 @@ LANGUAGES = ["en-US,en;q=0.9", "en-GB,en;q=0.8", "en;q=0.7"]
 # For test and Docker environments, always launch a new browser per call for reliability.
 
 
+async def apply_stealth(page, timeout_seconds):
+    """Apply stealth patches and timeout settings to a page."""
+    await stealth_async(page)
+    await page.add_init_script(
+        "Object.defineProperty(navigator, 'webdriver', {get: () => undefined});"
+        "Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en']});"
+        "Object.defineProperty(navigator, 'plugins', {get: () => [1,2,3,4,5]});"
+    )
+    page.set_default_navigation_timeout(timeout_seconds * 1000)
+    page.set_default_timeout(timeout_seconds * 1000)
+
+
 async def _setup_browser_context(p, user_agent, viewport, accept_language, timeout_seconds):
     browser = await p.chromium.launch(headless=True)
     context = await browser.new_context(
@@ -31,14 +43,6 @@ async def _setup_browser_context(p, user_agent, viewport, accept_language, timeo
         extra_http_headers={"Accept-Language": accept_language},
     )
     page = await context.new_page()
-
-    await stealth_async(page)
-    await page.add_init_script(
-        "Object.defineProperty(navigator, 'webdriver', {get: () => undefined});"
-        "Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en']});"
-        "Object.defineProperty(navigator, 'plugins', {get: () => [1,2,3,4,5]});"
-    )
-    page.set_default_navigation_timeout(timeout_seconds * 1000)
-    page.set_default_timeout(timeout_seconds * 1000)
+    await apply_stealth(page, timeout_seconds)
 
     return browser, context, page

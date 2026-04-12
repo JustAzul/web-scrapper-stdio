@@ -1,4 +1,4 @@
-# Web Scrapper Service (MCP Stdin/Stdout)
+# Web Scrapper Service (MCP Stdin/Stdout & HTTP)
 
 <!-- Badges: auto-generated, update workflow and Gist as needed -->
 ![Build](https://img.shields.io/github/actions/workflow/status/JustAzul/web-scrapper-stdio/.github%2Fworkflows%2Fbuild.yml?branch=master)
@@ -15,6 +15,9 @@
 - Headless browser scraping (Playwright, BeautifulSoup, Markdownify)
 - Outputs Markdown, text, or HTML
 - Designed for MCP (Model Context Protocol) stdio/JSON-RPC integration
+- **Dual transport**: stdio (default) and Streamable HTTP for shared service mode
+- **Persistent browser pool**: Chromium stays alive across requests for fast scraping
+- **Smart DOM wait**: MutationObserver-based content stabilization instead of fixed sleep
 - Dockerized, with pre-built images
 - Configurable via environment variables
 - Robust error handling (timeouts, HTTP errors, Cloudflare, etc.)
@@ -26,13 +29,72 @@
 
 ## Quick Start
 
-### Run with Docker
+### Run with Docker (stdio mode — one container per client)
 ```sh
 docker run -i --rm ghcr.io/justazul/web-scrapper-stdio
 ```
 
+### Run as Shared HTTP Service (one container, multiple clients)
+```sh
+docker run -d --name web-scraper \
+  -e MCP_TRANSPORT=streamable-http \
+  -e MCP_HTTP_PORT=8080 \
+  -e BROWSER_POOL_SIZE=3 \
+  -p 8080:8080 \
+  --shm-size=3gb \
+  ghcr.io/justazul/web-scrapper-stdio
+```
+
+Or with Docker Compose:
+```sh
+docker compose --profile service up -d
+```
+
 ### One-Click Installation (Cursor IDE)
 [![Add to Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=web-scrapper-stdio&config=eyJjb21tYW5kIjoiZG9ja2VyIHJ1biAtaSAtLXJtIGdoY3IuaW8vanVzdGF6dWwvd2ViLXNjcmFwcGVyLXN0ZGlvOmxhdGVzdCJ9)
+
+---
+
+## Transport Modes
+
+### stdio (default)
+Each MCP client spawns its own container via `docker run -i`. Simple, zero configuration, works with any MCP client.
+
+```json
+{
+  "mcpServers": {
+    "web-scrapper-stdio": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "ghcr.io/justazul/web-scrapper-stdio"]
+    }
+  }
+}
+```
+
+### Streamable HTTP (shared service)
+Run one persistent container that serves multiple MCP clients over HTTP. Saves resources when running multiple AI tool instances (e.g., multiple Claude Code sessions).
+
+Start the service:
+```sh
+docker run -d --name web-scraper \
+  -e MCP_TRANSPORT=streamable-http \
+  -e MCP_HTTP_PORT=8080 \
+  -p 8080:8080 \
+  --shm-size=3gb \
+  ghcr.io/justazul/web-scrapper-stdio
+```
+
+Connect from your MCP client:
+```json
+{
+  "mcpServers": {
+    "web-scrapper": {
+      "url": "http://localhost:8080/mcp"
+    }
+  }
+}
+```
+
 ---
 
 ## Integration with AI Tools & IDEs
@@ -74,6 +136,33 @@ Add to your Claude Desktop MCP config (typically `claude_desktop_config.json`):
   }
 }
 ```
+
+### Claude Code
+Add to your `.mcp.json` or global `~/.claude.json`:
+
+**stdio mode** (one container per session):
+```json
+{
+  "mcpServers": {
+    "web-scrapper-stdio": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "ghcr.io/justazul/web-scrapper-stdio"]
+    }
+  }
+}
+```
+
+**HTTP mode** (shared service — start the service first):
+```json
+{
+  "mcpServers": {
+    "web-scrapper": {
+      "url": "http://localhost:8080/mcp"
+    }
+  }
+}
+```
+
 ### Continue (VSCode/JetBrains Plugin)
 Add to your `continue.config.json` or via the Continue plugin MCP settings:
 ```json
@@ -139,7 +228,7 @@ This web scrapper is used as an MCP (Model Context Protocol) tool, allowing it t
 - `user_agent` (string, optional): Custom User-Agent string passed directly to the browser (defaults to a random agent)
 - `wait_for_network_idle` (boolean, optional): Wait for network activity to settle before scraping (default: true)
 - `custom_elements_to_remove` (list of strings, optional): Additional HTML elements (CSS selectors) to remove before extraction
-- `grace_period_seconds` (float, optional): Short grace period to allow JS to finish rendering (in seconds, default: 2.0)
+- `grace_period_seconds` (float, optional): Time to wait for JS rendering after navigation. Uses MutationObserver for smart detection. Set to 0 to skip entirely. (default: 0.5)
 - `output_format` (string, optional): `markdown`, `text`, or `html` (default: `markdown`)
 - `click_selector` (string, optional): If provided, click the element matching this selector after navigation and before extraction
 
@@ -177,13 +266,27 @@ This web scrapper is used as an MCP (Model Context Protocol) tool, allowing it t
 ## Configuration
 
 You can override most configuration options using environment variables:
+
+### Core Settings
 - `DEFAULT_TIMEOUT_SECONDS`: Timeout for page loads and navigation (default: 30)
 - `DEFAULT_MIN_CONTENT_LENGTH`: Minimum content length for extracted text (default: 100)
 - `DEFAULT_MIN_CONTENT_LENGTH_SEARCH_APP`: Minimum content length for search.app domains (default: 30)
 - `DEFAULT_MIN_SECONDS_BETWEEN_REQUESTS`: Minimum delay between requests to the same domain (default: 2)
+- `DEFAULT_GRACE_PERIOD_SECONDS`: Default grace period for JS rendering (default: 0.5)
+- `DEBUG_LOGS_ENABLED`: Set to `true` to enable debug-level logs (default: `false`)
+
+### Browser Pool
+- `BROWSER_POOL_ENABLED`: Enable persistent browser pool (default: `true`). Set to `false` for per-request browser launch (original behavior).
+- `BROWSER_POOL_SIZE`: Number of Chromium instances to keep alive (default: 2). Each instance uses ~100-200MB RAM.
+
+### Transport
+- `MCP_TRANSPORT`: Transport mode — `stdio` or `streamable-http` (default: `stdio`)
+- `MCP_HTTP_PORT`: HTTP server port when using streamable-http transport (default: 8080)
+- `MCP_HTTP_HOST`: HTTP server bind address (default: `0.0.0.0`)
+
+### Test Settings
 - `DEFAULT_TEST_REQUEST_TIMEOUT`: Timeout for test requests (default: 10)
 - `DEFAULT_TEST_NO_DELAY_THRESHOLD`: Threshold for skipping artificial delays in tests (default: 0.5)
-- `DEBUG_LOGS_ENABLED`: Set to `true` to enable debug-level logs (default: `false`)
 
 ---
 
@@ -218,6 +321,13 @@ All tests must be run using Docker Compose. Do **not** run tests outside Docker.
   ```sh
   docker compose up --build --abort-on-container-exit test_scrapper
   ```
+
+### Running Benchmarks
+```sh
+docker compose run --rm benchmark
+```
+
+Results are stored in `benchmarks/RESULTS.md`.
 
 ---
 

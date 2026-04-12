@@ -3,11 +3,13 @@ from playwright.async_api import async_playwright
 from src.config import (
     DEFAULT_TIMEOUT_SECONDS,
     DEFAULT_MIN_CONTENT_LENGTH,
-    DEFAULT_MIN_CONTENT_LENGTH_SEARCH_APP)
+    DEFAULT_MIN_CONTENT_LENGTH_SEARCH_APP,
+    BROWSER_POOL_ENABLED)
 from src.logger import Logger
 from .helpers.rate_limiting import get_domain_from_url, apply_rate_limiting
 from .helpers.browser import _setup_browser_context, USER_AGENTS, VIEWPORTS, LANGUAGES
-from .helpers.content_selectors import _wait_for_content_stabilization
+from .helpers.browser_pool import get_pool
+from .helpers.content_selectors import _wait_for_content_stabilization, wait_for_dom_stable
 from .helpers.html_utils import _extract_and_clean_html, _is_content_too_short
 from src.output_format_handler import (
     OutputFormat,
@@ -92,150 +94,145 @@ async def extract_text_from_url(url: str,
         ``error`` message if one occurred.
     """
     timeout_seconds = custom_timeout if custom_timeout is not None else DEFAULT_TIMEOUT_SECONDS
+    ua = user_agent or random.choice(USER_AGENTS)
+    viewport = random.choice(VIEWPORTS)
+    accept_language = random.choice(LANGUAGES)
 
+    if BROWSER_POOL_ENABLED:
+        return await _scrape_with_pool(
+            url, ua, viewport, accept_language, timeout_seconds,
+            grace_period_seconds, wait_for_network_idle, click_selector,
+            custom_elements_to_remove, max_length, output_format,
+        )
+    else:
+        return await _scrape_with_fresh_browser(
+            url, ua, viewport, accept_language, timeout_seconds,
+            grace_period_seconds, wait_for_network_idle, click_selector,
+            custom_elements_to_remove, max_length, output_format,
+        )
+
+
+async def _scrape_page(page, url, timeout_seconds, grace_period_seconds,
+                       wait_for_network_idle, click_selector,
+                       custom_elements_to_remove, max_length, output_format):
+    """Core scraping logic shared by both pool and fresh-browser paths."""
+    await apply_rate_limiting(url)
+    logger.debug(f"Navigating to URL: {url}")
+    response, nav_error = await _navigate_and_handle_errors(page, url, timeout_seconds)
+
+    if nav_error:
+        return {"title": None, "final_url": url, "content": None, "error": nav_error}
+
+    logger.debug(f"Waiting for content to stabilize on {page.url}")
+    domain = get_domain_from_url(page.url)
+    content_found = await _wait_for_content_stabilization(
+        page, domain, timeout_seconds, wait_for_network_idle)
+
+    if not content_found:
+        logger.warning(f"<body> tag not found for {page.url}")
+        return {"title": None, "final_url": page.url, "content": None, "error": "[ERROR] <body> tag not found."}
+
+    if click_selector:
+        try:
+            logger.debug(f"Attempting to click selector: {click_selector}")
+            await page.click(click_selector, timeout=3000)
+            logger.debug(f"Clicked selector: {click_selector}")
+        except Exception as e:
+            logger.warning(f"Could not click selector '{click_selector}': {e}")
+
+    logger.debug(f"Extracting content from: {page.url}")
+    await wait_for_dom_stable(page, grace_period_seconds)
+    html_content = await page.content()
+
+    is_blocked, cf_error = _handle_cloudflare_block(html_content, page.url)
+    if is_blocked:
+        return {"title": None, "final_url": page.url, "content": None, "error": cf_error}
+
+    default_elements_to_remove = [
+        'script', 'style', 'nav', 'footer', 'aside', 'header',
+        'form', 'button', 'input', 'select', 'textarea', 'label',
+        'iframe', 'figure', 'figcaption',
+    ]
+    elements_to_remove = default_elements_to_remove.copy()
+    if custom_elements_to_remove:
+        elements_to_remove.extend(custom_elements_to_remove)
+
+    page_title, clean_html, text_content, content_error, soup = extract_clean_html(
+        html_content, elements_to_remove, page.url)
+
+    if content_error:
+        return {"title": None, "final_url": page.url, "content": None, "error": content_error}
+
+    original_domain = get_domain_from_url(url)
+    min_content_length = (
+        DEFAULT_MIN_CONTENT_LENGTH_SEARCH_APP
+        if original_domain and "search.app" in original_domain
+        else DEFAULT_MIN_CONTENT_LENGTH
+    )
+
+    if _is_content_too_short(text_content, min_content_length):
+        logger.warning(f"No significant text content extracted (length < {min_content_length}) at {page.url}")
+        return {
+            "title": page_title, "final_url": page.url, "content": None,
+            "error": f"[ERROR] No significant text content extracted (too short, less than {min_content_length} characters).",
+        }
+
+    if output_format is OutputFormat.TEXT:
+        formatted = to_text(soup=soup)
+    elif output_format is OutputFormat.HTML:
+        formatted = str(soup.body) if soup and soup.body else clean_html
+    else:
+        formatted = to_markdown(clean_html)
+
+    if max_length is not None:
+        formatted = truncate_content(formatted, max_length)
+
+    logger.debug(f"Successfully extracted text from {page.url}")
+    return {"title": page_title, "final_url": page.url, "content": formatted, "error": None}
+
+
+async def _scrape_with_pool(url, ua, viewport, accept_language, timeout_seconds,
+                            grace_period_seconds, wait_for_network_idle, click_selector,
+                            custom_elements_to_remove, max_length, output_format):
+    """Scrape using the persistent browser pool."""
+    pool = await get_pool()
+    context = None
+    try:
+        context, page = await pool.acquire(ua, viewport, accept_language, timeout_seconds)
+        return await _scrape_page(
+            page, url, timeout_seconds, grace_period_seconds,
+            wait_for_network_idle, click_selector,
+            custom_elements_to_remove, max_length, output_format,
+        )
+    except Exception as e:
+        logger.warning(f"Unexpected error during scraping of {url}: {e}")
+        return {"title": None, "final_url": url, "content": None,
+                "error": f"[ERROR] An unexpected error occurred: {str(e)}"}
+    finally:
+        if context is not None:
+            await pool.release(context)
+
+
+async def _scrape_with_fresh_browser(url, ua, viewport, accept_language, timeout_seconds,
+                                     grace_period_seconds, wait_for_network_idle, click_selector,
+                                     custom_elements_to_remove, max_length, output_format):
+    """Scrape using a fresh browser per request (original behavior)."""
     try:
         async with async_playwright() as p:
-            ua = user_agent or random.choice(USER_AGENTS)
-            viewport = random.choice(VIEWPORTS)
-            accept_language = random.choice(LANGUAGES)
-
             browser = None
             context = None
             try:
-                browser, context, page = await _setup_browser_context(p, ua, viewport, accept_language, timeout_seconds)
-
-                await apply_rate_limiting(url)
-                logger.debug(f"Navigating to URL: {url}")
-                response, nav_error = await _navigate_and_handle_errors(page, url, timeout_seconds)
-
-                if nav_error:
-                    return {
-                        "title": None,
-                        "final_url": url,
-                        "content": None,
-                        "error": nav_error,
-                    }
-
-                logger.debug(f"Waiting for content to stabilize on {page.url}")
-                domain = get_domain_from_url(page.url)
-                content_found = await _wait_for_content_stabilization(
-                    page, domain, timeout_seconds, wait_for_network_idle)
-
-                if not content_found:
-                    logger.warning(f"<body> tag not found for {page.url}")
-                    return {
-                        "title": None,
-                        "final_url": page.url,
-                        "content": None,
-                        "error": "[ERROR] <body> tag not found.",
-                    }
-
-                # Optional: Click an element if selector is provided
-                if click_selector:
-                    try:
-                        logger.debug(
-                            f"Attempting to click selector: {click_selector}")
-                        await page.click(click_selector, timeout=3000)
-                        logger.debug(f"Clicked selector: {click_selector}")
-                    except Exception as e:
-                        logger.warning(
-                            f"Could not click selector '{click_selector}': {e}")
-
-                logger.debug(f"Extracting content from: {page.url}")
-                await asyncio.sleep(grace_period_seconds)
-                html_content = await page.content()
-
-                is_blocked, cf_error = _handle_cloudflare_block(
-                    html_content, page.url)
-
-                if is_blocked:
-                    return {
-                        "title": None,
-                        "final_url": page.url,
-                        "content": None,
-                        "error": cf_error,
-                    }
-
-                default_elements_to_remove = [
-                    'script',
-                    'style',
-                    'nav',
-                    'footer',
-                    'aside',
-                    'header',
-                    'form',
-                    'button',
-                    'input',
-                    'select',
-                    'textarea',
-                    'label',
-                    'iframe',
-                    'figure',
-                    'figcaption']
-
-                elements_to_remove = default_elements_to_remove.copy()
-
-                if custom_elements_to_remove:
-                    elements_to_remove.extend(custom_elements_to_remove)
-
-                page_title, clean_html, text_content, content_error, soup = extract_clean_html(
-                    html_content, elements_to_remove, page.url)
-
-                if content_error:
-                    return {
-                        "title": None,
-                        "final_url": page.url,
-                        "content": None,
-                        "error": content_error,
-                    }
-
-                original_domain = get_domain_from_url(url)
-                min_content_length = (
-                    DEFAULT_MIN_CONTENT_LENGTH_SEARCH_APP
-                    if original_domain and "search.app" in original_domain
-                    else DEFAULT_MIN_CONTENT_LENGTH
+                browser, context, page = await _setup_browser_context(
+                    p, ua, viewport, accept_language, timeout_seconds)
+                return await _scrape_page(
+                    page, url, timeout_seconds, grace_period_seconds,
+                    wait_for_network_idle, click_selector,
+                    custom_elements_to_remove, max_length, output_format,
                 )
-
-                if _is_content_too_short(text_content, min_content_length):
-                    logger.warning(
-                        f"No significant text content extracted (length < {min_content_length}) at {page.url}"
-                    )
-                    return {
-                        "title": page_title,
-                        "final_url": page.url,
-                        "content": None,
-                        "error": f"[ERROR] No significant text content extracted (too short, less than {min_content_length} characters).",
-                    }
-
-                if output_format is OutputFormat.TEXT:
-                    formatted = to_text(soup=soup)
-                elif output_format is OutputFormat.HTML:
-                    formatted = str(
-                        soup.body) if soup and soup.body else clean_html
-                else:
-                    formatted = to_markdown(clean_html)
-
-                if max_length is not None:
-                    formatted = truncate_content(formatted, max_length)
-
-                logger.debug(f"Successfully extracted text from {page.url}")
-
-                return {
-                    "title": page_title,
-                    "final_url": page.url,
-                    "content": formatted,
-                    "error": None,
-                }
-
             except Exception as e:
-                logger.warning(
-                    f"Unexpected error during scraping of {url}: {e}")
-                return {
-                    "title": None,
-                    "final_url": url,
-                    "content": None,
-                    "error": f"[ERROR] An unexpected error occurred: {str(e)}",
-                }
+                logger.warning(f"Unexpected error during scraping of {url}: {e}")
+                return {"title": None, "final_url": url, "content": None,
+                        "error": f"[ERROR] An unexpected error occurred: {str(e)}"}
             finally:
                 if context is not None:
                     try:
@@ -249,30 +246,11 @@ async def extract_text_from_url(url: str,
                         pass
 
     except ImportError:
-        logger.warning(
-            "Playwright is not installed. Please run 'pip install playwright && playwright install'")
-
-        return {
-            "title": None,
-            "final_url": url,
-            "content": None,
-            "error": "[ERROR] Playwright installation missing.",
-        }
+        logger.warning("Playwright is not installed. Please run 'pip install playwright && playwright install'")
+        return {"title": None, "final_url": url, "content": None,
+                "error": "[ERROR] Playwright installation missing."}
 
     except Exception as e:
-        logger.warning(
-            f"General error setting up Playwright or during execution for {url}: {e}")
-
-        return {
-            "title": None,
-            "final_url": url,
-            "content": None,
-            "error": f"[ERROR] An unexpected error occurred: {str(e)}",
-        }
-
-    return {
-        "title": None,
-        "final_url": url,
-        "content": None,
-        "error": "[ERROR] Unknown error occurred.",
-    }
+        logger.warning(f"General error setting up Playwright or during execution for {url}: {e}")
+        return {"title": None, "final_url": url, "content": None,
+                "error": f"[ERROR] An unexpected error occurred: {str(e)}"}
