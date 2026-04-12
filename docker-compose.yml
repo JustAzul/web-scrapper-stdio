@@ -39,7 +39,7 @@ services:
         pytest -v -rs tests/test_mcp_server.py
       "
 
-  test_scraper:
+  test_scrapper:
     build:
       context: .
       dockerfile: Dockerfile
